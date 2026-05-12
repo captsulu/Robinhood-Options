@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Robinhood Options Monitor</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+/* ── Reset & Variables ─────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #0d1117;
+  --surface:   #161b22;
+  --surface2:  #21262d;
+  --border:    #30363d;
+  --text:      #c9d1d9;
+  --muted:     #8b949e;
+  --green:     #3fb950;
+  --yellow:    #d29922;
+  --red:       #f85149;
+  --blue:      #58a6ff;
+  --purple:    #bc8cff;
+  --lime:      #7ee787;
+  --teal:      #39d353;
+  --orange:    #f0883e;
+}
+body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+a { color: var(--blue); }
+button { cursor: pointer; }
+
+/* ── Header ───────────────────────────────────────────────────────── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px; background: var(--surface); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 100;
+}
+.header-left { display: flex; align-items: center; gap: 12px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+header h1 { font-size: 18px; font-weight: 700; white-space: nowrap; }
+#sessionLabel { font-size: 13px; color: var(--muted); }
+#lastScan { font-size: 12px; color: var(--muted); }
+
+.badge { padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+.badge-ok    { background: rgba(63,185,80,.2); color: var(--green); }
+.badge-error { background: rgba(248,81,73,.2); color: var(--red); }
+
+.btn { background: var(--surface2); color: var(--text); border: 1px solid var(--border);
+  padding: 6px 14px; border-radius: 6px; font-size: 13px; }
+.btn:hover { background: var(--border); }
+.btn-sm { background: var(--surface2); color: var(--muted); border: 1px solid var(--border);
+  padding: 3px 10px; border-radius: 5px; font-size: 12px; margin-left: 10px; }
+.btn-sm:hover { color: var(--text); }
+.btn-primary { background: var(--blue); color: #0d1117; border: none; padding: 7px 18px;
+  border-radius: 6px; font-weight: 600; }
+.btn-primary:hover { opacity: .85; }
+
+/* ── Settings Overlay ─────────────────────────────────────────────── */
+.settings-overlay {
+  position: sticky; top: 57px; z-index: 90;
+  background: var(--surface); border-bottom: 1px solid var(--border);
+  padding: 20px; animation: slideDown .15s ease;
+}
+.settings-overlay.hidden { display: none; }
+@keyframes slideDown { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 16px; max-width: 900px; }
+.settings-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+.settings-field input[type=range] { width: 100%; accent-color: var(--blue); }
+.settings-field input[type=number],
+.settings-field input[type=email]  { width: 100%; background: var(--bg); border: 1px solid var(--border);
+  color: var(--text); padding: 6px 10px; border-radius: 6px; font-size: 13px; }
+.settings-field input:disabled { opacity: .4; }
+.tol-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+.tol-val { font-weight: 700; color: var(--blue); }
+.settings-actions { margin-top: 16px; display: flex; gap: 10px; }
+/* Email toggle */
+.toggle-wrap { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.toggle-label { font-size: 12px; color: var(--muted); }
+.toggle { position: relative; width: 40px; height: 22px; }
+.toggle input { opacity: 0; width: 0; height: 0; }
+.slider-toggle { position: absolute; inset: 0; background: var(--surface2); border-radius: 22px;
+  border: 1px solid var(--border); transition: .2s; cursor: pointer; }
+.slider-toggle:before { content:''; position: absolute; left: 3px; bottom: 3px;
+  width: 14px; height: 14px; background: var(--muted); border-radius: 50%; transition: .2s; }
+input:checked + .slider-toggle { background: rgba(88,166,255,.3); border-color: var(--blue); }
+input:checked + .slider-toggle:before { transform: translateX(18px); background: var(--blue); }
+
+/* ── Tab Bar ──────────────────────────────────────────────────────── */
+.tab-bar {
+  display: flex; gap: 0; background: var(--surface);
+  border-bottom: 1px solid var(--border); padding: 0 20px;
+}
+.tab-btn {
+  background: none; border: none; color: var(--muted);
+  padding: 10px 18px; font-size: 14px; font-weight: 500;
+  border-bottom: 2px solid transparent; transition: color .15s, border-color .15s;
+}
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--blue); border-bottom-color: var(--blue); }
+
+/* ── Tab Panes ────────────────────────────────────────────────────── */
+main { padding: 20px; max-width: 1600px; margin: 0 auto; }
+.tab-pane { display: block; }
+.tab-pane.hidden { display: none; }
+
+/* ── Alert Banner ─────────────────────────────────────────────────── */
+.alert-banner {
+  padding: 12px 18px; border-radius: 8px; margin-bottom: 16px;
+  font-weight: 600; font-size: 14px;
+}
+.alert-banner.hidden   { display: none; }
+.alert-critical { background: rgba(248,81,73,.15); border: 1px solid rgba(248,81,73,.4); color: var(--red); }
+.alert-warning  { background: rgba(210,153,34,.12); border: 1px solid rgba(210,153,34,.35); color: var(--yellow); }
+.alert-info     { background: rgba(88,166,255,.08); border: 1px solid rgba(88,166,255,.25); color: var(--blue); }
+
+/* ── Summary Cards ────────────────────────────────────────────────── */
+.cards-row { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.card {
+  flex: 1 1 110px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 14px 16px; min-width: 100px;
+}
+.card-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 6px; }
+.card-value { font-size: 22px; font-weight: 700; }
+.card-safe     .card-value { color: var(--green); }
+.card-warning  .card-value { color: var(--yellow); }
+.card-critical .card-value { color: var(--red); }
+.card-highlight { border-color: var(--blue); }
+.card-highlight .card-value { color: var(--blue); }
+.card-session { font-size: 13px; }
+
+/* ── Section ──────────────────────────────────────────────────────── */
+.section { margin-bottom: 28px; }
+.section-title {
+  font-size: 15px; font-weight: 600; color: var(--text);
+  margin-bottom: 12px; display: flex; align-items: center;
+}
+
+/* ── Table ────────────────────────────────────────────────────────── */
+.table-wrap { overflow-x: auto; border-radius: 8px; border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; }
+thead th {
+  background: var(--surface2); color: var(--muted); font-size: 11px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+  padding: 8px 12px; text-align: left; white-space: nowrap;
+}
+tbody tr { border-top: 1px solid var(--border); transition: background .1s; }
+tbody tr:hover { background: var(--surface2); }
+tbody td { padding: 9px 12px; vertical-align: middle; }
+.empty-msg { text-align: center; color: var(--muted); padding: 24px !important; }
+.sym-col { font-weight: 700; font-size: 15px; }
+.num-col { font-family: 'Courier New', monospace; text-align: right; white-space: nowrap; }
+.msg-col { max-width: 300px; font-size: 12px; color: var(--muted); }
+.text-safe     { color: var(--green); }
+.text-warning  { color: var(--yellow); }
+.text-critical { color: var(--red); }
+
+/* Row status tints */
+.row-warning  td { background: rgba(210,153,34,.04); }
+.row-critical td { background: rgba(248,81,73,.06); }
+
+/* Spread row grouping */
+.spread-row.spread-a { border-left: 3px solid var(--blue); }
+.spread-row.spread-b { border-left: 3px solid var(--purple); }
+
+/* ── Strategy Badges ──────────────────────────────────────────────── */
+.badge-strategy {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.badge-strategy.covered-call   { background: rgba(63,185,80,.15);  color: var(--green); }
+.badge-strategy.call-spread    { background: rgba(88,166,255,.15); color: var(--blue); }
+.badge-strategy.put-spread     { background: rgba(188,140,255,.15);color: var(--purple); }
+.badge-strategy.csp            { background: rgba(126,231,135,.15);color: var(--lime); }
+.badge-strategy.long-call      { background: rgba(57,211,83,.12);  color: var(--teal); }
+.badge-strategy.long-put       { background: rgba(240,136,62,.15); color: var(--orange); }
+.badge-strategy.naked-call     { background: rgba(248,81,73,.15);  color: var(--red); }
+.badge-strategy.unknown-strat  { background: var(--surface2);       color: var(--muted); }
+
+/* ── Status Badges ────────────────────────────────────────────────── */
+.badge-status {
+  display: inline-block; padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 600;
+}
+.badge-status.safe     { background: rgba(63,185,80,.15);  color: var(--green); }
+.badge-status.warning  { background: rgba(210,153,34,.15); color: var(--yellow); }
+.badge-status.critical { background: rgba(248,81,73,.18);  color: var(--red); }
+.badge-status.unknown    { background: var(--surface2);       color: var(--muted); }
+.badge-status.protected  { background: rgba(88,166,255,.08);  color: var(--muted); border: 1px solid var(--border); }
+.text-muted-leg          { color: var(--muted); }
+
+/* Position type pill */
+.pos-type { display: inline-block; padding: 1px 6px; border-radius: 8px; font-size: 10px;
+  font-weight: 600; margin-left: 4px; text-transform: uppercase; }
+.pos-type.long  { background: rgba(88,166,255,.15); color: var(--blue); }
+.pos-type.short { background: rgba(248,81,73,.12);  color: var(--red); }
+
+/* ── Cash Section ─────────────────────────────────────────────────── */
+.comparison-grid {
+  display: grid; grid-template-columns: 140px 1fr 1fr 1fr; gap: 8px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  padding: 14px; margin-top: 14px; max-width: 600px;
+}
+.comp-header { font-size: 11px; font-weight: 700; color: var(--muted);
+  text-transform: uppercase; letter-spacing: .05em; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+.comp-label { font-size: 12px; color: var(--muted); display: flex; align-items: center; }
+.comparison-grid div:not(.comp-header):not(.comp-label) {
+  font-family: 'Courier New', monospace; font-size: 13px; text-align: right; }
+.pos-delta { color: var(--green); font-weight: 600; }
+.neg-delta { color: var(--red); font-weight: 600; }
+.hint { color: var(--muted); font-size: 13px; padding: 10px 0; }
+
+/* ── Charts ───────────────────────────────────────────────────────── */
+.chart-controls { margin-bottom: 14px; color: var(--muted); font-size: 13px; }
+.chart-controls select {
+  background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  padding: 4px 8px; border-radius: 6px; margin-left: 6px;
+}
+#chartsContainer { display: grid; grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); gap: 20px; }
+.chart-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.chart-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; }
+.canvas-wrap { position: relative; height: 220px; }
+
+/* ── Collapsible sections ─────────────────────────────────────────── */
+.section-title.collapsible { cursor: pointer; user-select: none; }
+.section-title.collapsible .collapse-arrow {
+  display: inline-block; font-size: 11px; color: var(--muted);
+  margin-left: 6px; transition: transform .2s; vertical-align: middle;
+}
+.section-title.collapsible.collapsed .collapse-arrow { transform: rotate(-90deg); }
+.section-body { transition: none; }
+.section-body.hidden { display: none; }
+
+/* ── Snapshot type badges ─────────────────────────────────────────── */
+.snap-type { display: inline-block; padding: 2px 7px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+.snap-open   { background: rgba(88,166,255,.15); color: var(--blue); }
+.snap-close  { background: rgba(188,140,255,.15);color: var(--purple); }
+.snap-trade  { background: rgba(63,185,80,.15);  color: var(--green); }
+.snap-manual { background: var(--surface2);       color: var(--muted); }
+
+/* ── Capital & P&L ────────────────────────────────────────────────── */
+.card-pnl-pos  { border-color: rgba(63,185,80,.4);  }
+.card-pnl-neg  { border-color: rgba(248,81,73,.4);  }
+.pnl-pos       { color: var(--green); }
+.pnl-neg       { color: var(--red);   }
+.pnl-neutral   { color: var(--muted); }
+.pending-val   { color: var(--muted); font-style: italic; }
+.transfers-table .dir-deposit   { color: var(--green); font-weight: 600; }
+.transfers-table .dir-withdrawal{ color: var(--red);   font-weight: 600; }
+.status-cleared  { color: var(--green); }
+.status-pending  { color: var(--yellow); }
+.status-cancelled{ color: var(--muted); }
+.clear-btn { background: rgba(63,185,80,.15); color: var(--green);
+  border: 1px solid rgba(63,185,80,.3); padding: 2px 8px; border-radius: 4px; font-size: 11px; cursor: pointer; }
+.clear-btn:hover { background: rgba(63,185,80,.3); }
+
+/* ── Responsive ───────────────────────────────────────────────────── */
+@media (max-width: 700px) {
+  header { flex-wrap: wrap; gap: 8px; }
+  .cards-row .card { flex: 1 1 80px; }
+  #chartsContainer { grid-template-columns: 1fr; }
+  .comparison-grid { grid-template-columns: 100px 1fr 1fr 1fr; font-size: 12px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────────── -->
+<header>
+  <div class="header-left">
+    <h1>📈 Options Monitor</h1>
+    <span id="sessionLabel"></span>
+    <span id="statusBadge" class="badge badge-ok">✓ OK</span>
+  </div>
+  <div class="header-right">
+    <span id="lastScan"></span>
+    <button class="btn" onclick="triggerScan()" id="scanBtn">🔄 Scan Now</button>
+    <button class="btn" onclick="toggleSettings()">⚙ Settings</button>
+  </div>
+</header>
+
+<!-- ── Settings Overlay ────────────────────────────────────────────── -->
+<div id="settingsOverlay" class="settings-overlay hidden">
+  <div class="settings-grid">
+    <div class="settings-field">
+      <label>
+        <div class="tol-row">
+          <span>Tolerance</span><span class="tol-val" id="tolValue">2.0%</span>
+        </div>
+      </label>
+      <input type="range" id="tolSlider" min="0.5" max="20" step="0.5" value="2">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:2px"><span>0.5%</span><span>20%</span></div>
+    </div>
+    <div class="settings-field">
+      <label>Days Before Expiry Warning</label>
+      <input type="number" id="dteInput" min="1" max="30" value="3">
+    </div>
+    <div class="settings-field">
+      <label>Scan Interval (minutes)</label>
+      <input type="number" id="scanInput" min="1" max="60" value="5">
+    </div>
+    <div class="settings-field">
+      <label>Email Alerts</label>
+      <div class="toggle-wrap">
+        <label class="toggle"><input type="checkbox" id="emailToggle"><span class="slider-toggle"></span></label>
+        <span class="toggle-label">Send email alerts</span>
+      </div>
+      <input type="email" id="emailAddr" placeholder="recipient@example.com" disabled>
+    </div>
+  </div>
+  <div class="settings-actions">
+    <button class="btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+    <button class="btn" onclick="toggleSettings()">Cancel</button>
+  </div>
+</div>
+
+<!-- ── Tab Bar ─────────────────────────────────────────────────────── -->
+<div class="tab-bar">
+  <button class="tab-btn active" id="tab-dashboard" onclick="showTab('dashboard')">📊 Dashboard</button>
+  <button class="tab-btn" id="tab-collateral" onclick="showTab('collateral')">🔒 Collateral</button>
+  <button class="tab-btn" id="tab-transfers" onclick="showTab('transfers')">💵 Transfers</button>
+  <button class="tab-btn" id="tab-logs" onclick="showTab('logs')">📋 Logs</button>
+</div>
+
+<main>
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  DASHBOARD TAB                                                     -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="pane-dashboard" class="tab-pane">
+
+  <!-- Alert Banner -->
+  <div id="alertBanner" class="alert-banner hidden"></div>
+
+  <!-- Summary Cards -->
+  <div class="cards-row">
+    <div class="card">
+      <div class="card-label">Positions</div>
+      <div class="card-value" id="cardTotal">--</div>
+    </div>
+    <div class="card card-safe">
+      <div class="card-label">Safe</div>
+      <div class="card-value" id="cardSafe">--</div>
+    </div>
+    <div class="card card-warning">
+      <div class="card-label">Warning</div>
+      <div class="card-value" id="cardWarning">--</div>
+    </div>
+    <div class="card card-critical">
+      <div class="card-label">Critical</div>
+      <div class="card-value" id="cardCritical">--</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Tolerance</div>
+      <div class="card-value" id="cardTolerance">2.0%</div>
+    </div>
+    <div class="card">
+      <div class="card-label">Session</div>
+      <div class="card-value card-session" id="cardSession">--</div>
+    </div>
+  </div>
+
+  <!-- ── Cash & Funds ─────────────────────────────────────────────── -->
+  <section class="section">
+    <h2 class="section-title collapsible" onclick="toggleSection('cash')">
+      Cash &amp; Funds
+      <span class="collapse-arrow">▼</span>
+      <button class="btn-sm" onclick="event.stopPropagation(); refreshCash()">↻ Refresh</button>
+    </h2>
+    <div class="section-body" id="body-cash">
+      <div class="cards-row">
+        <div class="card card-highlight">
+          <div class="card-label">Withdrawable</div>
+          <div class="card-value" id="cashWithdrawable">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">
+            Buying Power
+            <label style="font-size:11px;font-weight:normal;display:flex;align-items:center;gap:4px;margin-top:5px;cursor:pointer">
+              <input type="checkbox" id="marginToggle" onchange="onMarginToggle()" style="accent-color:var(--blue);cursor:pointer">
+              <span style="color:var(--muted)">Include Margin</span>
+            </label>
+          </div>
+          <div class="card-value" id="cashBuyingPower">--</div>
+          <div id="marginNote" style="display:none;font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">No Gold margin on account</div>
+          <div id="marginAlt"  style="display:none;font-size:10px;color:var(--muted);margin-top:4px;"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Total Cash</div>
+          <div class="card-value" id="cashTotalCard">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Held for Orders</div>
+          <div class="card-value" id="cashHeld">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Uncleared</div>
+          <div class="card-value" id="cashUncleared">--</div>
+        </div>
+        <div class="card" id="collateralCard" style="border-color:rgba(240,136,62,.4)">
+          <div class="card-label" style="color:var(--orange)">🔒 Locked (Collateral)</div>
+          <div class="card-value" id="cashCollateral" style="color:var(--orange)">--</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;">Released on expiry/close</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Portfolio Equity</div>
+          <div class="card-value" id="cashEquity">--</div>
+        </div>
+      </div>
+      <div id="cashComparison"></div>
+    </div>
+  </section>
+
+  <!-- ── Capital & Returns ─────────────────────────────────────────── -->
+  <section class="section">
+    <h2 class="section-title collapsible" onclick="toggleSection('capital')">
+      Capital &amp; Returns
+      <span class="collapse-arrow">▼</span>
+      <button class="btn-sm" onclick="event.stopPropagation(); syncTransfers(this)">↻ Sync from Robinhood</button>
+    </h2>
+    <div class="section-body" id="body-capital">
+      <!-- P&L summary cards -->
+      <div class="cards-row" id="capitalCards">
+        <div class="card card-highlight">
+          <div class="card-label">Net Capital In</div>
+          <div class="card-value" id="capNetCapital">--</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px" id="capDepWith"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Pending (not counted)</div>
+          <div class="card-value pending-val" id="capPending">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Portfolio Equity</div>
+          <div class="card-value" id="capEquity">--</div>
+        </div>
+        <div class="card" id="capPnlCard">
+          <div class="card-label">Total P&amp;L</div>
+          <div class="card-value" id="capPnl">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Return %</div>
+          <div class="card-value" id="capReturn">--</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Options Positions Table ─────────────────────────────────── -->
+  <section class="section">
+    <h2 class="section-title">Options Positions</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th>
+            <th>Strategy</th>
+            <th>Type</th>
+            <th>Strike</th>
+            <th>Expiration</th>
+            <th>DTE</th>
+            <th>Qty</th>
+            <th>Avg Price</th>
+            <th>Current</th>
+            <th>Distance</th>
+            <th>🔒 Collateral</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="positionsBody">
+          <tr><td colspan="12" class="empty-msg">Loading positions…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ── Price Charts ─────────────────────────────────────────────── -->
+  <section class="section">
+    <h2 class="section-title">Price Charts</h2>
+    <div class="chart-controls">
+      Period:
+      <select id="chartHours" onchange="refreshCharts()">
+        <option value="6">6 hours</option>
+        <option value="24" selected>24 hours</option>
+        <option value="48">48 hours</option>
+        <option value="168">1 week</option>
+      </select>
+    </div>
+    <div id="chartsContainer"></div>
+  </section>
+
+</div><!-- end pane-dashboard -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  LOGS TAB                                                          -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  COLLATERAL TAB                                                    -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="pane-collateral" class="tab-pane hidden">
+  <section class="section">
+    <h2 class="section-title">
+      🔒 Collateral Breakdown
+      <span style="font-size:12px;font-weight:400;color:var(--muted);margin-left:10px;">Cash locked as collateral by open options positions</span>
+    </h2>
+
+    <!-- Summary cards -->
+    <div class="cards-row" style="margin-bottom:20px;">
+      <div class="card" style="border-color:rgba(240,136,62,.4);">
+        <div class="card-label" style="color:var(--orange);">Total Locked</div>
+        <div class="card-value" id="colTabTotal" style="color:var(--orange);">--</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Released on expiry or close</div>
+      </div>
+      <div class="card card-highlight">
+        <div class="card-label">Withdrawable Cash</div>
+        <div class="card-value" id="colTabWithdrawable">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Total Cash</div>
+        <div class="card-value" id="colTabCash">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Cash − Collateral</div>
+        <div class="card-value" id="colTabFree">--</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Unencumbered cash</div>
+      </div>
+    </div>
+
+    <!-- Breakdown table -->
+    <div id="collateralBreakdown">
+      <p class="hint">Run a scan to populate collateral data.</p>
+    </div>
+  </section>
+</div><!-- end pane-collateral -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  TRANSFERS TAB                                                     -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="pane-transfers" class="tab-pane hidden">
+
+  <section class="section">
+    <h2 class="section-title">
+      Transfer History
+      <button class="btn-sm" onclick="syncTransfers(this)">↻ Sync from Robinhood</button>
+    </h2>
+    <div class="table-wrap">
+      <table class="transfers-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Direction</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Source</th>
+            <th>Notes</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="xferBody">
+          <tr><td colspan="7" class="empty-msg">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div><!-- end pane-transfers -->
+
+<div id="pane-logs" class="tab-pane hidden">
+
+  <!-- Alert History -->
+  <section class="section">
+    <h2 class="section-title">Alert History</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Symbol</th>
+            <th>Status</th>
+            <th>Message</th>
+            <th>Price</th>
+            <th>Distance</th>
+            <th>DTE</th>
+          </tr>
+        </thead>
+        <tbody id="alertsBody">
+          <tr><td colspan="7" class="empty-msg">No alerts yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Cash Snapshot History -->
+  <section class="section">
+    <h2 class="section-title">
+      Cash Snapshot History
+      <button class="btn-sm" onclick="takeManualSnapshot()">📸 Take Snapshot</button>
+    </h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Withdrawable</th>
+            <th>Buying Power</th>
+            <th>Cash</th>
+            <th>Portfolio Equity</th>
+          </tr>
+        </thead>
+        <tbody id="cashBody">
+          <tr><td colspan="6" class="empty-msg">No snapshots yet</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+</div><!-- end pane-logs -->
+
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────
+let _positions      = [];
+let _strikeMap      = {};   // symbol → [strike, ...]
+let _charts         = {};   // symbol → Chart instance
+let _currentTol     = 2.0;
+let _settingsOpen   = false;
+
+// ── Tabs ───────────────────────────────────────────────────────────
+function showTab(name) {
+  document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pane-' + name).classList.remove('hidden');
+  document.getElementById('tab-'  + name).classList.add('active');
+  try { localStorage.setItem('activeTab', name); } catch(e) {}
+  if (name === 'logs')       { loadAlerts(); loadCashHistory(); }
+  if (name === 'transfers')  { refreshTransfers(); }
+  if (name === 'collateral') { renderCollateralBreakdown(_positions, window._lastTotalCollateral || 0); }
+}
+
+// ── Settings ───────────────────────────────────────────────────────
+function toggleSettings() {
+  _settingsOpen = !_settingsOpen;
+  document.getElementById('settingsOverlay').classList.toggle('hidden', !_settingsOpen);
+}
+
+function loadSettings() {
+  fetch('/api/config').then(r => r.json()).then(cfg => {
+    _currentTol = parseFloat(cfg.tolerance_percent) || 2.0;
+    document.getElementById('tolSlider').value        = _currentTol;
+    document.getElementById('tolValue').textContent   = _currentTol.toFixed(1) + '%';
+    document.getElementById('dteInput').value         = cfg.days_before_expiration_warning || 3;
+    document.getElementById('scanInput').value        = cfg.scan_interval_minutes || 5;
+    document.getElementById('emailToggle').checked    = !!cfg.email_enabled;
+    document.getElementById('emailAddr').value        = cfg.email_address || '';
+    document.getElementById('emailAddr').disabled     = !cfg.email_enabled;
+    document.getElementById('cardTolerance').textContent = _currentTol.toFixed(1) + '%';
+  });
+}
+
+function saveSettings() {
+  const payload = {
+    tolerance_percent:              parseFloat(document.getElementById('tolSlider').value),
+    days_before_expiration_warning: parseInt(document.getElementById('dteInput').value),
+    scan_interval_minutes:          parseInt(document.getElementById('scanInput').value),
+    email_enabled:                  document.getElementById('emailToggle').checked,
+    email_to_address:               document.getElementById('emailAddr').value.trim()
+  };
+  fetch('/api/config', {
+    method:  'POST',
+    headers: {'Content-Type': 'application/json'},
+    body:    JSON.stringify(payload)
+  }).then(r => r.json()).then(res => {
+    if (res.success) {
+      _currentTol = payload.tolerance_percent;
+      document.getElementById('cardTolerance').textContent = _currentTol.toFixed(1) + '%';
+      toggleSettings();
+      refresh();
+    }
+  });
+}
+
+// ── Scan trigger ───────────────────────────────────────────────────
+function triggerScan() {
+  const btn = document.getElementById('scanBtn');
+  btn.disabled = true; btn.textContent = '⏳ Scanning…';
+  fetch('/api/scan', {method:'POST'}).then(() => {
+    setTimeout(() => {
+      refresh();
+      btn.disabled = false; btn.textContent = '🔄 Scan Now';
+    }, 3500);
+  });
+}
+
+// ── Positions fetch & render ───────────────────────────────────────
+function refresh() {
+  fetch('/api/positions').then(r => r.json()).then(data => {
+    _positions = data.positions || [];
+    updateHeader(data);
+    buildStrikeMap(_positions);
+    renderPositionsTable(_positions);
+    renderCollateralBreakdown(_positions, data.total_collateral || 0);
+    renderCharts();
+  }).catch(e => console.error('positions error', e));
+}
+
+function updateHeader(data) {
+  document.getElementById('sessionLabel').textContent  = data.session || '';
+  document.getElementById('lastScan').textContent      = data.last_scan ? 'Last scan: ' + fmtTime(data.last_scan) : '';
+  const badge = document.getElementById('statusBadge');
+  badge.className   = 'badge badge-' + (data.status === 'error' ? 'error' : 'ok');
+  badge.textContent = data.status === 'error' ? '✕ Error' : '✓ OK';
+
+  const safe = _positions.filter(p => p.status === 'safe').length;
+  const warn = _positions.filter(p => p.status === 'warning').length;
+  const crit = _positions.filter(p => p.status === 'critical').length;
+  document.getElementById('cardTotal').textContent   = _positions.length;
+  document.getElementById('cardSafe').textContent    = safe;
+  document.getElementById('cardWarning').textContent = warn;
+  document.getElementById('cardCritical').textContent= crit;
+  document.getElementById('cardSession').textContent = data.session || '--';
+
+  const banner = document.getElementById('alertBanner');
+  if (crit > 0) {
+    banner.className   = 'alert-banner alert-critical';
+    banner.textContent = '🚨 ' + crit + ' CRITICAL position' + (crit !== 1 ? 's' : '') + ' — immediate attention required!';
+  } else if (warn > 0) {
+    banner.className   = 'alert-banner alert-warning';
+    banner.textContent = '⚠️ ' + warn + ' position' + (warn !== 1 ? 's' : '') + ' in WARNING zone';
+  } else if (!data.market_open) {
+    banner.className   = 'alert-banner alert-info';
+    banner.textContent = '🌙 ' + (data.message || 'Outside trading hours');
+  } else {
+    banner.className = 'alert-banner hidden';
+  }
+}
+
+function buildStrikeMap(positions) {
+  _strikeMap = {};
+  positions.forEach(p => {
+    if (!_strikeMap[p.symbol]) _strikeMap[p.symbol] = [];
+    if (!_strikeMap[p.symbol].includes(p.strike_price)) _strikeMap[p.symbol].push(p.strike_price);
+  });
+}
+
+function renderPositionsTable(positions) {
+  const tbody = document.getElementById('positionsBody');
+  if (!positions.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">No open positions</td></tr>';
+    return;
+  }
+  // Alternate colors between spread groups
+  const groupColor = {};
+  let ci = 0;
+  positions.forEach(p => {
+    if (p.spread_group && !(p.spread_group in groupColor))
+      groupColor[p.spread_group] = (ci++ % 2 === 0) ? 'spread-a' : 'spread-b';
+  });
+
+  tbody.innerHTML = positions.map(p => {
+    const distSign  = p.distance_pct >= 0 ? '+' : '';
+    const distCls   = p.distance_pct < 0 ? 'critical' : Math.abs(p.distance_pct) <= _currentTol ? 'warning' : 'safe';
+    const dteCls    = p.dte !== null && p.dte <= 3 ? 'text-critical' : p.dte <= 7 ? 'text-warning' : '';
+    const groupCls  = p.spread_group ? 'spread-row ' + (groupColor[p.spread_group] || '') : '';
+
+    // Collateral cell
+    const col     = p.collateral || 0;
+    const colType = p.collateral_type || '';
+    let colCell;
+    if (col > 0) {
+      colCell = '<span style="color:var(--orange);font-weight:600;">$' + col.toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</span>';
+    } else if (colType === 'stock_secured') {
+      colCell = '<span style="color:var(--muted);font-size:11px;">Stock</span>';
+    } else if (colType === 'protected_leg') {
+      colCell = '<span style="color:var(--muted);font-size:11px;">—</span>';
+    } else if (colType === 'none' || colType === '') {
+      colCell = '<span style="color:var(--muted);font-size:11px;">—</span>';
+    } else {
+      colCell = '<span style="color:var(--muted);font-size:11px;">—</span>';
+    }
+
+    return '<tr class="' + groupCls + ' row-' + p.status + '">' +
+      '<td class="sym-col">' + p.symbol + '</td>' +
+      '<td>' + strategyBadge(p) + '</td>' +
+      '<td>' + p.type.charAt(0).toUpperCase() + p.type.slice(1) + ' <span class="pos-type ' + p.position_type + '">' + (p.position_type === 'long' ? 'Buy' : 'Sell') + '</span></td>' +
+      '<td class="num-col">$' + p.strike_price.toFixed(2) + '</td>' +
+      '<td>' + fmtDate(p.expiration_date) + '</td>' +
+      '<td class="num-col ' + dteCls + '">' + (p.dte !== null ? p.dte + 'd' : '--') + '</td>' +
+      '<td class="num-col">' + p.quantity + '</td>' +
+      '<td class="num-col">$' + p.average_price.toFixed(2) + '</td>' +
+      '<td class="num-col">$' + p.current_price.toFixed(2) + '</td>' +
+      '<td class="num-col ' + (p.spread_leg === 'long' ? 'text-muted-leg' : 'text-' + distCls) + '">' + distSign + p.distance_pct.toFixed(1) + '%</td>' +
+      '<td class="num-col">' + colCell + '</td>' +
+      '<td>' + (p.spread_leg === 'long' ? '<span class="badge-status protected">🛡 Protected</span>' : statusBadge(p.status)) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderCollateralBreakdown(positions, totalCollateral) {
+  const fmt = v => '$' + parseFloat(v || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  // Cache for tab re-entry
+  window._lastTotalCollateral = totalCollateral;
+
+  // Update the dashboard card
+  const dashCard = document.getElementById('cashCollateral');
+  if (dashCard) {
+    dashCard.textContent = positions.length > 0 ? fmt(totalCollateral) : '--';
+  }
+
+  // Update collateral tab summary cards
+  const live = window._lastCashLive;
+  const tabTotal = document.getElementById('colTabTotal');
+  const tabWith  = document.getElementById('colTabWithdrawable');
+  const tabCash  = document.getElementById('colTabCash');
+  const tabFree  = document.getElementById('colTabFree');
+  if (tabTotal) tabTotal.textContent = fmt(totalCollateral);
+  if (live) {
+    if (tabWith) tabWith.textContent = fmt(live.cash_available_for_withdrawal);
+    if (tabCash) tabCash.textContent = fmt(live.cash);
+    if (tabFree) {
+      const free = parseFloat(live.cash || 0) - totalCollateral;
+      tabFree.textContent = fmt(free);
+      tabFree.style.color = free >= 0 ? '' : 'var(--red)';
+    }
+  }
+
+  // Render the breakdown table
+  const breakdown = document.getElementById('collateralBreakdown');
+  if (!breakdown) return;
+
+  const withCollateral = positions.filter(p => (p.collateral || 0) > 0);
+
+  if (!withCollateral.length) {
+    if (positions.length === 0) {
+      breakdown.innerHTML = '<p class="hint">No positions loaded yet — run a scan first.</p>';
+    } else {
+      breakdown.innerHTML = '<p class="hint">No cash collateral required by current positions. Covered calls use stock as collateral.</p>';
+    }
+    return;
+  }
+
+  const rows = withCollateral.map(p => {
+    const typeLabel = {
+      cash_secured:    'CSP — full strike',
+      spread_max_loss: 'Spread — max loss',
+    }[p.collateral_type] || p.collateral_type || '';
+    const dteLbl = p.dte !== null ? p.dte + 'd' : '--';
+    const dteCls = p.dte !== null && p.dte <= 3 ? 'text-critical' : p.dte <= 7 ? 'text-warning' : '';
+    return '<tr>' +
+      '<td class="sym-col">' + p.symbol + '</td>' +
+      '<td>' + strategyBadge(p) + '</td>' +
+      '<td class="num-col">$' + p.strike_price.toFixed(2) + '</td>' +
+      '<td class="num-col">' + p.quantity + '</td>' +
+      '<td>' + fmtDate(p.expiration_date) + '</td>' +
+      '<td class="num-col ' + dteCls + '">' + dteLbl + '</td>' +
+      '<td style="font-size:11px;color:var(--muted);">' + typeLabel + '</td>' +
+      '<td class="num-col" style="color:var(--orange);font-weight:700;">' + fmt(p.collateral) + '</td>' +
+      '</tr>';
+  }).join('');
+
+  breakdown.innerHTML =
+    '<div class="table-wrap">' +
+    '<table>' +
+    '<thead><tr>' +
+    '<th>Symbol</th><th>Strategy</th><th>Strike</th><th>Qty</th><th>Expiration</th><th>DTE</th><th>Collateral Type</th><th>Cash Locked</th>' +
+    '</tr></thead>' +
+    '<tbody>' + rows + '</tbody>' +
+    '<tfoot><tr style="border-top:2px solid var(--border)">' +
+    '<td colspan="7" style="padding:9px 12px;font-weight:700;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;">Total locked</td>' +
+    '<td class="num-col" style="padding:9px 12px;font-weight:700;color:var(--orange);font-size:16px;">' + fmt(totalCollateral) + '</td>' +
+    '</tr></tfoot>' +
+    '</table></div>';
+}
+
+function strategyBadge(p) {
+  const leg = p.spread_leg === 'long' ? ' ▲' : p.spread_leg === 'short' ? ' ▼' : '';
+  const map = {
+    covered_call:     ['covered-call',  'Covered Call'],
+    call_spread:      ['call-spread',   'Call Spread' + leg],
+    put_spread:       ['put-spread',    'Put Spread' + leg],
+    cash_secured_put: ['csp',           'CSP'],
+    long_call:        ['long-call',     'Long Call'],
+    long_put:         ['long-put',      'Long Put'],
+    naked_call:       ['naked-call',    'Naked Call'],
+  };
+  const [cls, label] = map[p.strategy] || ['unknown-strat', p.strategy || 'Unknown'];
+  return '<span class="badge-strategy ' + cls + '">' + label + '</span>';
+}
+
+function statusBadge(s) {
+  const m = {safe:'✓ Safe', warning:'⚠ Warning', critical:'🚨 Critical', unknown:'? Unknown'};
+  return '<span class="badge-status ' + s + '">' + (m[s] || s) + '</span>';
+}
+
+// ── Charts ─────────────────────────────────────────────────────────
+function refreshCharts() { if (_positions.length) renderCharts(); }
+
+function renderCharts() {
+  const symbols  = [...new Set(_positions.map(p => p.symbol))];
+  const hours    = parseInt(document.getElementById('chartHours').value) || 24;
+  const container = document.getElementById('chartsContainer');
+
+  // Add chart wrappers for new symbols
+  symbols.forEach(sym => {
+    if (!document.getElementById('chart-' + sym)) {
+      const wrap = document.createElement('div');
+      wrap.className = 'chart-wrap';
+      wrap.dataset.sym = sym;
+      wrap.innerHTML = '<h3 class="chart-title">' + sym + '</h3><div class="canvas-wrap"><canvas id="chart-' + sym + '"></canvas></div>';
+      container.appendChild(wrap);
+    }
+  });
+  // Remove charts no longer needed
+  container.querySelectorAll('.chart-wrap').forEach(w => {
+    if (!symbols.includes(w.dataset.sym)) { w.remove(); delete _charts[w.dataset.sym]; }
+  });
+
+  symbols.forEach(sym => {
+    fetch('/api/history/' + sym + '?hours=' + hours)
+      .then(r => r.json()).then(rows => drawChart(sym, rows));
+  });
+}
+
+function drawChart(symbol, rows) {
+  const strikes = _strikeMap[symbol] || [];
+  const tol     = _currentTol / 100;
+  const labels  = rows.map(r => fmtTime(r.recorded_at));
+  const prices  = rows.map(r => r.price);
+
+  // Chart.js 4.x plugin — draws strike lines and tolerance bands
+  const strikePlugin = {
+    id: 'strikeLines',
+    afterDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!chartArea || !scales.y) return;
+      strikes.forEach(strike => {
+        const yCenter = scales.y.getPixelForValue(strike);
+        const yUpper  = scales.y.getPixelForValue(strike * (1 + tol));
+        const yLower  = scales.y.getPixelForValue(strike * (1 - tol));
+        const zoneTop = Math.min(yUpper, yLower);
+        const zoneH   = Math.abs(yUpper - yLower);
+
+        ctx.save();
+        // Tolerance zone shading
+        ctx.fillStyle = 'rgba(248,81,73,0.09)';
+        ctx.fillRect(chartArea.left, zoneTop, chartArea.right - chartArea.left, zoneH);
+        // Dashed strike line
+        ctx.beginPath();
+        ctx.setLineDash([8, 4]);
+        ctx.strokeStyle = '#f85149';
+        ctx.lineWidth = 1.5;
+        ctx.moveTo(chartArea.left, yCenter);
+        ctx.lineTo(chartArea.right, yCenter);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        // Strike label
+        ctx.fillStyle   = '#f85149';
+        ctx.font        = 'bold 11px Segoe UI, system-ui, sans-serif';
+        ctx.textAlign   = 'right';
+        ctx.textBaseline= 'bottom';
+        ctx.fillText('Strike $' + strike.toFixed(2), chartArea.right - 4, yCenter - 2);
+        ctx.restore();
+      });
+    }
+  };
+
+  const canvas = document.getElementById('chart-' + symbol);
+  if (!canvas) return;
+  if (_charts[symbol]) { _charts[symbol].destroy(); delete _charts[symbol]; }
+
+  _charts[symbol] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: symbol + ' Price',
+        data: prices,
+        borderColor: '#58a6ff',
+        backgroundColor: 'rgba(88,166,255,0.07)',
+        borderWidth: 2,
+        pointRadius: rows.length > 120 ? 0 : 2,
+        tension: 0.2,
+        fill: true,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        x: {
+          ticks: { color: '#8b949e', maxTicksLimit: 8, maxRotation: 0 },
+          grid:  { color: '#21262d' }
+        },
+        y: {
+          ticks: { color: '#8b949e', callback: v => '$' + v.toFixed(2) },
+          grid:  { color: '#21262d' }
+        }
+      },
+      plugins: {
+        legend:  { labels: { color: '#c9d1d9' } },
+        tooltip: { callbacks: { label: ctx => ' $' + ctx.parsed.y.toFixed(4) } }
+      }
+    },
+    plugins: [strikePlugin]
+  });
+}
+
+// ── Cash ───────────────────────────────────────────────────────────
+function refreshCash() {
+  fetch('/api/cash').then(r => r.json()).then(data => {
+    const live = data.live;
+    if (live) {
+      window._lastCashLive = live;   // cache for toggle re-render
+      if (window._lastCapSummary) renderCapitalCards(window._lastCapSummary);
+      const fmt = v => '$' + parseFloat(v || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+      document.getElementById('cashWithdrawable').textContent = fmt(live.cash_available_for_withdrawal);
+      const useMargin = document.getElementById('marginToggle') && document.getElementById('marginToggle').checked;
+      const bpCash   = live.buying_power;
+      const bpMargin = live.buying_power_with_margin || live.buying_power;
+      document.getElementById('cashBuyingPower').textContent = fmt(useMargin ? bpMargin : bpCash);
+      renderMarginHint(live, useMargin);
+      document.getElementById('cashTotalCard').textContent    = fmt(live.cash);
+      document.getElementById('cashHeld').textContent         = fmt(live.cash_held_for_orders);
+      document.getElementById('cashUncleared').textContent    = fmt(live.uncleared_deposits);
+      document.getElementById('cashEquity').textContent       = fmt(live.portfolio_equity);
+      // Keep collateral tab cash cards in sync
+      const colWith = document.getElementById('colTabWithdrawable');
+      const colCash = document.getElementById('colTabCash');
+      const colFree = document.getElementById('colTabFree');
+      if (colWith) colWith.textContent = fmt(live.cash_available_for_withdrawal);
+      if (colCash) colCash.textContent = fmt(live.cash);
+      if (colFree) {
+        const locked = window._lastTotalCollateral || 0;
+        const free   = parseFloat(live.cash || 0) - locked;
+        colFree.textContent = fmt(free);
+        colFree.style.color = free >= 0 ? '' : 'var(--red)';
+      }
+    }
+    renderCashComparison(data.snapshots || []);
+  });
+}
+
+function renderMarginHint(live, useMargin) {
+  const fmt    = v => '$' + parseFloat(v || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const note   = document.getElementById('marginNote');
+  const alt    = document.getElementById('marginAlt');
+  const bpCash = parseFloat(live.buying_power   || 0);
+  const bpMgn  = parseFloat(live.buying_power_with_margin || live.buying_power || 0);
+  const same   = Math.abs(bpCash - bpMgn) < 0.01;
+
+  if (note) {
+    // Show "no margin" note only when checkbox is checked but values are identical
+    note.style.display = (useMargin && same) ? 'block' : 'none';
+  }
+  if (alt) {
+    // Show the other value as a small hint below the primary
+    if (!same) {
+      alt.textContent = useMargin ? ('Cash: ' + fmt(bpCash)) : ('w/ Margin: ' + fmt(bpMgn));
+      alt.style.display = 'block';
+    } else {
+      alt.style.display = 'none';
+    }
+  }
+}
+
+function onMarginToggle() {
+  const cb = document.getElementById('marginToggle');
+  try { localStorage.setItem('bpMargin', cb.checked ? '1' : '0'); } catch(e) {}
+  if (window._lastCashLive) {
+    const live   = window._lastCashLive;
+    const fmt    = v => '$' + parseFloat(v || 0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+    const bpCash = live.buying_power;
+    const bpMgn  = live.buying_power_with_margin || live.buying_power;
+    document.getElementById('cashBuyingPower').textContent = fmt(cb.checked ? bpMgn : bpCash);
+    renderMarginHint(live, cb.checked);
+  }
+}
+
+function renderCashComparison(snapshots) {
+  const today    = new Date().toISOString().slice(0, 10);
+  const todayS   = snapshots.filter(s => s.recorded_at && s.recorded_at.startsWith(today));
+  const openSnap = todayS.find(s => s.snapshot_type === 'open');
+  const closeSnap= todayS.find(s => s.snapshot_type === 'close');
+  const div      = document.getElementById('cashComparison');
+
+  if (!openSnap && !closeSnap) {
+    div.innerHTML = '<p class="hint" style="margin-top:10px">No open/close snapshots captured today yet.</p>';
+    return;
+  }
+  const fmt = v => (v != null && v !== undefined) ? '$' + parseFloat(v).toLocaleString('en-US', {minimumFractionDigits:2}) : '--';
+  const delta = (a, b) => {
+    if (a == null || b == null) return '';
+    const d = parseFloat(b) - parseFloat(a);
+    const c = d >= 0 ? 'pos-delta' : 'neg-delta';
+    return '<span class="' + c + '">' + (d >= 0 ? '+' : '') + '$' + Math.abs(d).toFixed(2) + '</span>';
+  };
+  const o = openSnap  || {};
+  const c = closeSnap || {};
+  div.innerHTML =
+    '<div class="comparison-grid">' +
+      '<div class="comp-header"></div>' +
+      '<div class="comp-header">🔔 Open</div>' +
+      '<div class="comp-header">🔕 Close</div>' +
+      '<div class="comp-header">Change</div>' +
+      '<div class="comp-label">Withdrawable</div>' +
+      '<div>' + fmt(o.cash_available_for_withdrawal) + '</div>' +
+      '<div>' + fmt(c.cash_available_for_withdrawal) + '</div>' +
+      '<div>' + delta(o.cash_available_for_withdrawal, c.cash_available_for_withdrawal) + '</div>' +
+      '<div class="comp-label">Buying Power</div>' +
+      '<div>' + fmt(o.buying_power) + '</div>' +
+      '<div>' + fmt(c.buying_power) + '</div>' +
+      '<div>' + delta(o.buying_power, c.buying_power) + '</div>' +
+      '<div class="comp-label">Portfolio</div>' +
+      '<div>' + fmt(o.portfolio_equity) + '</div>' +
+      '<div>' + fmt(c.portfolio_equity) + '</div>' +
+      '<div>' + delta(o.portfolio_equity, c.portfolio_equity) + '</div>' +
+    '</div>';
+}
+
+// ── Logs Tab ───────────────────────────────────────────────────────
+function loadAlerts() {
+  fetch('/api/alerts').then(r => r.json()).then(alerts => {
+    const tbody = document.getElementById('alertsBody');
+    if (!alerts.length) {
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No alerts recorded yet</td></tr>';
+      return;
+    }
+    tbody.innerHTML = alerts.map(a =>
+      '<tr>' +
+      '<td style="white-space:nowrap">' + fmtTime(a.created_at) + '</td>' +
+      '<td class="sym-col">' + a.symbol + '</td>' +
+      '<td>' + statusBadge(a.status) + '</td>' +
+      '<td class="msg-col">' + (a.message || '') + '</td>' +
+      '<td class="num-col">' + (a.current_price != null ? '$' + parseFloat(a.current_price).toFixed(2) : '--') + '</td>' +
+      '<td class="num-col">' + (a.distance_pct  != null ? parseFloat(a.distance_pct).toFixed(1) + '%' : '--') + '</td>' +
+      '<td class="num-col">' + (a.dte            != null ? a.dte + 'd' : '--') + '</td>' +
+      '</tr>'
+    ).join('');
+  });
+}
+
+function loadCashHistory() {
+  fetch('/api/cash').then(r => r.json()).then(data => {
+    const snaps = data.snapshots || [];
+    const tbody = document.getElementById('cashBody');
+    if (!snaps.length) {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">No snapshots recorded yet</td></tr>';
+      return;
+    }
+    const fmt = v => (v != null) ? '$' + parseFloat(v).toLocaleString('en-US', {minimumFractionDigits:2}) : '--';
+    tbody.innerHTML = snaps.slice(0, 120).map(s =>
+      '<tr>' +
+      '<td style="white-space:nowrap">' + fmtTime(s.recorded_at) + '</td>' +
+      '<td><span class="snap-type snap-' + s.snapshot_type + '">' + s.snapshot_type + '</span></td>' +
+      '<td class="num-col">' + fmt(s.cash_available_for_withdrawal) + '</td>' +
+      '<td class="num-col">' + fmt(s.buying_power) + '</td>' +
+      '<td class="num-col">' + fmt(s.cash) + '</td>' +
+      '<td class="num-col">' + fmt(s.portfolio_equity) + '</td>' +
+      '</tr>'
+    ).join('');
+  });
+}
+
+function takeManualSnapshot() {
+  fetch('/api/cash/snapshot', {method:'POST'}).then(r => r.json()).then(res => {
+    if (res.success) loadCashHistory();
+  });
+}
+
+// ── Utilities ──────────────────────────────────────────────────────
+function fmtDate(s) {
+  // Convert YYYY-MM-DD to M/D/YYYY
+  if (!s) return '--';
+  try { const [y, m, d] = s.split('-'); return parseInt(m) + '/' + parseInt(d) + '/' + y; }
+  catch(e) { return s; }
+}
+
+function fmtTime(iso) {
+  if (!iso) return '--';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + ' ' +
+           d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit'});
+  } catch(e) { return iso; }
+}
+
+// ── Transfers / Capital ────────────────────────────────────────────
+function refreshTransfers() {
+  fetch('/api/transfers').then(r => r.json()).then(data => {
+    renderCapitalCards(data.summary);
+    renderXferTable(data.transfers);
+  }).catch(e => console.error('transfers error', e));
+}
+
+function syncTransfers(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+  fetch('/api/transfers/sync', {method:'POST'}).then(r => r.json()).then(data => {
+    if (data.success) {
+      renderCapitalCards(data.summary);
+      renderXferTable(data.transfers);
+    }
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Sync from Robinhood'; }
+  }).catch(() => { if (btn) { btn.disabled = false; btn.textContent = '↻ Sync from Robinhood'; } });
+}
+
+function renderCapitalCards(s) {
+  if (!s) return;
+  const fmt  = v => '$' + parseFloat(v||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+
+  document.getElementById('capNetCapital').textContent = fmt(s.net_capital);
+  document.getElementById('capPending').textContent    = s.pending_deposits > 0 ? fmt(s.pending_deposits) : '$0.00';
+  document.getElementById('capDepWith').textContent    =
+    'Deposited ' + fmt(s.total_deposited) + (s.total_withdrawn > 0 ? ' / Withdrawn ' + fmt(s.total_withdrawn) : '');
+
+  // Equity comes from the cash panel (window._lastCashLive)
+  const equity = window._lastCashLive ? parseFloat(window._lastCashLive.portfolio_equity || 0) : null;
+  const eqEl   = document.getElementById('capEquity');
+  const pnlEl  = document.getElementById('capPnl');
+  const retEl  = document.getElementById('capReturn');
+  const cardEl = document.getElementById('capPnlCard');
+
+  if (equity !== null) {
+    eqEl.textContent = fmt(equity);
+    const pnl = equity - parseFloat(s.net_capital || 0);
+    const ret = s.net_capital > 0 ? (pnl / s.net_capital * 100) : 0;
+    pnlEl.textContent = (pnl >= 0 ? '+' : '') + fmt(pnl);
+    retEl.textContent = (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%';
+    pnlEl.className   = 'card-value ' + (pnl > 0 ? 'pnl-pos' : pnl < 0 ? 'pnl-neg' : 'pnl-neutral');
+    retEl.className   = 'card-value ' + (ret > 0 ? 'pnl-pos' : ret < 0 ? 'pnl-neg' : 'pnl-neutral');
+    cardEl.className  = 'card ' + (pnl > 0 ? 'card-pnl-pos' : pnl < 0 ? 'card-pnl-neg' : '');
+  } else {
+    eqEl.textContent  = '(loading…)';
+    pnlEl.textContent = '--';
+    retEl.textContent = '--';
+  }
+  // store summary so equity updates re-render the P&L
+  window._lastCapSummary = s;
+}
+
+function renderXferTable(transfers) {
+  const tbody = document.getElementById('xferBody');
+  if (!transfers || !transfers.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No transfers recorded</td></tr>';
+    return;
+  }
+  const fmt = v => '$' + parseFloat(v||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  tbody.innerHTML = transfers.map(t => {
+    const dirCls = t.direction === 'deposit' ? 'dir-deposit' : 'dir-withdrawal';
+    const stCls  = 'status-' + t.status;
+    const clearBtn = t.status === 'pending'
+      ? '<button class="clear-btn" onclick="markCleared(' + t.id + ', this)">✓ Mark Cleared</button>'
+      : '';
+    const src = t.source === 'robinhood' ? '🤖 RH' : '✏ Manual';
+    return '<tr>' +
+      '<td style="white-space:nowrap">' + fmtDate(t.transfer_date) + '</td>' +
+      '<td class="' + dirCls + '">' + t.direction.charAt(0).toUpperCase() + t.direction.slice(1) + '</td>' +
+      '<td class="num-col">' + fmt(t.amount) + '</td>' +
+      '<td class="' + stCls + '">' + t.status.charAt(0).toUpperCase() + t.status.slice(1) + '</td>' +
+      '<td>' + src + '</td>' +
+      '<td style="color:var(--muted);font-size:12px">' + (t.notes || '') + '</td>' +
+      '<td>' + clearBtn + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function markCleared(id, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  fetch('/api/transfers/' + id + '/clear', {method:'POST'})
+    .then(r => r.json()).then(data => {
+      if (data.success) {
+        renderCapitalCards(data.summary);
+        renderXferTable(data.transfers);
+      }
+    });
+}
+
+// ── Collapsible sections ───────────────────────────────────────────
+function toggleSection(id) {
+  const body  = document.getElementById('body-' + id);
+  const title = body.previousElementSibling;
+  const open  = !body.classList.contains('hidden');
+  body.classList.toggle('hidden', open);
+  title.classList.toggle('collapsed', open);
+  try { localStorage.setItem('section-' + id, open ? 'collapsed' : 'open'); } catch(e) {}
+}
+
+function restoreSections() {
+  ['cash', 'capital'].forEach(id => {
+    try {
+      const state = localStorage.getItem('section-' + id);
+      if (state === 'collapsed') {
+        const body  = document.getElementById('body-' + id);
+        const title = body.previousElementSibling;
+        body.classList.add('hidden');
+        title.classList.add('collapsed');
+      }
+    } catch(e) {}
+  });
+}
+
+// ── Init ───────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  loadSettings();
+  restoreSections();
+  refresh();
+  refreshTransfers();
+
+  // Restore margin toggle before refreshCash so the first render uses it
+  try {
+    const saved = localStorage.getItem('bpMargin');
+    if (saved !== null) document.getElementById('marginToggle').checked = (saved === '1');
+  } catch(e) {}
+
+  refreshCash();
+
+  // Restore last active tab
+  let savedTab = 'dashboard';
+  try { savedTab = localStorage.getItem('activeTab') || 'dashboard'; } catch(e) {}
+  showTab(savedTab);
+
+  // Slider live-update label
+  document.getElementById('tolSlider').addEventListener('input', function() {
+    document.getElementById('tolValue').textContent = parseFloat(this.value).toFixed(1) + '%';
+  });
+  // Email toggle enables/disables address field
+  document.getElementById('emailToggle').addEventListener('change', function() {
+    document.getElementById('emailAddr').disabled = !this.checked;
+  });
+
+  // Auto-refresh
+  setInterval(refresh,          30000);
+  setInterval(refreshCash,      60000);
+  setInterval(refreshTransfers, 120000);   // re-check transfers every 2 min
+});
+</script>
+</body>
+</html>

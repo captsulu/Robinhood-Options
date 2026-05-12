@@ -1,0 +1,19 @@
+{
+  "tolerance_percent": 2.0,
+  "days_before_expiration_warning": 3,
+  "scan_interval_minutes": 5,
+  "desktop_notifications": true,
+  "email": {
+    "enabled": false,
+    "smtp_server": "smtp.gmail.com",
+    "smtp_port": 587,
+    "from_address": "captsulu@gmail.com",
+    "to_address": "captsulu@gmail.com",
+    "app_password": "YOUR_GMAIL_APP_PASSWORD_HERE"
+  },
+  "market_hours": {
+    "premarket_start": "04:00",
+    "aftermarket_end": "20:00",
+    "timezone": "America/New_York"
+  }
+}

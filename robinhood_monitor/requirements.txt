@@ -1,0 +1,11 @@
+# Robinhood Options Monitor - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+robin-stocks>=2.0.0       # Unofficial Robinhood API client
+flask>=2.3.0               # Web server for the browser dashboard
+waitress>=3.0.0            # Production WSGI server (replaces Flask dev server)
+yfinance>=0.2.38           # Yahoo Finance fallback for stock prices
+python-dotenv>=1.0         # Loads credentials from .env file
+plyer>=2.1.0               # Desktop (Windows) notifications
+pytz>=2023.3               # Timezone handling (Eastern Time)
+schedule>=1.2.0            # Runs scans on a timed schedule
