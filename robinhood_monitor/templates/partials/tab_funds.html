@@ -1,0 +1,89 @@
+<!-- ── Funds tab — Cash & Funds + Capital & Returns ─────────────────────── -->
+<div id="pane-funds" class="tab-pane hidden">
+
+  <!-- Cash & Funds -->
+  <section class="section">
+    <h2 class="section-title collapsible" onclick="toggleSection('cash')">
+      Cash &amp; Funds
+      <span class="collapse-arrow">▼</span>
+      <button class="btn-sm" onclick="event.stopPropagation(); refreshCash()">↻ Refresh</button>
+    </h2>
+    <div class="section-body" id="body-cash">
+      <div class="cards-row">
+        <div class="card card-highlight">
+          <div class="card-label">Withdrawable</div>
+          <div class="card-value" id="cashWithdrawable">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">
+            Buying Power
+            <label style="font-size:11px;font-weight:normal;display:flex;align-items:center;gap:4px;margin-top:5px;cursor:pointer">
+              <input type="checkbox" id="marginToggle" onchange="onMarginToggle()" style="accent-color:var(--blue);cursor:pointer">
+              <span style="color:var(--muted)">Include Margin</span>
+            </label>
+          </div>
+          <div class="card-value" id="cashBuyingPower">--</div>
+          <div id="marginNote" style="display:none;font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">No Gold margin on account</div>
+          <div id="marginAlt"  style="display:none;font-size:10px;color:var(--muted);margin-top:4px;"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Total Cash</div>
+          <div class="card-value" id="cashTotalCard">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Held for Orders</div>
+          <div class="card-value" id="cashHeld">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Uncleared</div>
+          <div class="card-value" id="cashUncleared">--</div>
+        </div>
+        <div class="card" id="collateralCard" style="border-color:rgba(240,136,62,.4)">
+          <div class="card-label" style="color:var(--orange)">🔒 Locked (Collateral)</div>
+          <div class="card-value" id="cashCollateral" style="color:var(--orange)">--</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:4px;">Released on expiry/close</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Portfolio Equity</div>
+          <div class="card-value" id="cashEquity">--</div>
+        </div>
+      </div>
+      <div id="cashComparison"></div>
+    </div>
+  </section>
+
+  <!-- Capital & Returns -->
+  <section class="section">
+    <h2 class="section-title collapsible" onclick="toggleSection('capital')">
+      Capital &amp; Returns
+      <span class="collapse-arrow">▼</span>
+      <button class="btn-sm" onclick="event.stopPropagation(); syncTransfers(this)">↻ Sync from Robinhood</button>
+    </h2>
+    <div class="section-body" id="body-capital">
+      <div class="cards-row" id="capitalCards">
+        <div class="card card-highlight">
+          <div class="card-label">Net Capital In</div>
+          <div class="card-value" id="capNetCapital">--</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px" id="capDepWith"></div>
+        </div>
+        <div class="card">
+          <div class="card-label">Pending (not counted)</div>
+          <div class="card-value pending-val" id="capPending">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Portfolio Equity</div>
+          <div class="card-value" id="capEquity">--</div>
+        </div>
+        <div class="card" id="capPnlCard">
+          <div class="card-label">Total P&amp;L</div>
+          <div class="card-value" id="capPnl">--</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Return %</div>
+          <div class="card-value" id="capReturn">--</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- end pane-funds -->

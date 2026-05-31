@@ -1,0 +1,117 @@
+<!-- ── Stock Screen Tab ─────────────────────────────────────────── -->
+<div id="pane-stockscreen" class="tab-pane hidden">
+
+  <!-- Header row -->
+  <div class="section-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+    <h2 style="margin:0;font-size:18px;font-weight:700;">📈 Stock Screen</h2>
+    <span id="ssStatsLabel" style="color:var(--muted);font-size:13px;"></span>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <div id="ssScanStatus" class="ss-scan-status hidden"></div>
+      <button class="btn-sm" onclick="window.stockScreen.triggerScan(this)" id="ssScanBtn">⚡ Run Full Scan</button>
+    </div>
+  </div>
+
+  <!-- Scan progress bar (hidden when not scanning) -->
+  <div id="ssScanProgress" class="ss-progress-wrap hidden">
+    <div class="ss-progress-bar"><div id="ssScanBar" class="ss-progress-fill" style="width:0%"></div></div>
+    <span id="ssScanProgressText" class="ss-progress-text">Starting…</span>
+    <button class="btn-sm btn-danger" onclick="window.stockScreen.stopScan()" style="margin-left:8px;">■ Stop</button>
+  </div>
+
+  <!-- Search + filters -->
+  <div class="ss-controls">
+    <!-- Typeahead search -->
+    <div class="ss-search-wrap">
+      <input type="text" id="ssSearch" class="ss-search"
+             placeholder="Search ticker or company name…"
+             oninput="window.stockScreen.onSearch(this.value)"
+             autocomplete="off" spellcheck="false">
+      <span class="ss-search-icon">🔍</span>
+    </div>
+
+    <!-- Grade filter chips -->
+    <div class="ss-filter-group">
+      <span class="ss-filter-label">Grade:</span>
+      <button class="ss-chip ss-chip-active" data-grade="" onclick="window.stockScreen.setGrade('')">All</button>
+      <button class="ss-chip grade-A" data-grade="A" onclick="window.stockScreen.setGrade('A')">A</button>
+      <button class="ss-chip grade-B" data-grade="B" onclick="window.stockScreen.setGrade('B')">B</button>
+      <button class="ss-chip grade-C" data-grade="C" onclick="window.stockScreen.setGrade('C')">C</button>
+      <button class="ss-chip grade-D" data-grade="D" onclick="window.stockScreen.setGrade('D')">D</button>
+      <button class="ss-chip grade-F" data-grade="F" onclick="window.stockScreen.setGrade('F')">F</button>
+    </div>
+
+    <!-- Price filter chips -->
+    <div class="ss-filter-group">
+      <span class="ss-filter-label">Max Price:</span>
+      <button class="ss-chip ss-chip-active" data-price="" onclick="window.stockScreen.setMaxPrice('')">Any</button>
+      <button class="ss-chip" data-price="100"  onclick="window.stockScreen.setMaxPrice(100)">≤$100</button>
+      <button class="ss-chip" data-price="250"  onclick="window.stockScreen.setMaxPrice(250)">≤$250</button>
+      <button class="ss-chip" data-price="500"  onclick="window.stockScreen.setMaxPrice(500)">≤$500</button>
+      <button class="ss-chip" data-price="1000" onclick="window.stockScreen.setMaxPrice(1000)">≤$1,000</button>
+    </div>
+
+    <!-- Options-only toggle (on by default) -->
+    <button class="ss-preset-btn ss-preset-active" id="ssOptionsOnlyBtn"
+            onclick="window.stockScreen.toggleOptionsOnly()"
+            title="Show only stocks with listed options">
+      📋 Options Only
+    </button>
+
+    <!-- Covered-call preset -->
+    <button class="ss-preset-btn" id="ssCoveredCallBtn"
+            onclick="window.stockScreen.toggleCoveredCallPreset()"
+            title="Grade A stocks under $500 — ideal for covered calls">
+      🎯 Covered Call Picks
+    </button>
+  </div>
+
+  <!-- Results count + pagination -->
+  <div class="ss-results-bar">
+    <span id="ssResultCount" style="color:var(--muted);font-size:13px;"></span>
+    <div id="ssPaginationTop" class="ss-pagination"></div>
+  </div>
+
+  <!-- Stock table -->
+  <div class="table-wrap ss-table-wrap">
+    <table id="ssTable" class="ss-table">
+      <thead>
+        <tr>
+          <th class="ss-th-sort" data-col="symbol"           onclick="window.stockScreen.setSort('symbol')">Ticker <span class="sort-arrow"></span></th>
+          <th                                                >Company</th>
+          <th class="ss-th-sort" data-col="current_price"    onclick="window.stockScreen.setSort('current_price')">Price <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="grade"            onclick="window.stockScreen.setSort('grade')">Grade <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="score"            onclick="window.stockScreen.setSort('score')">Score <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="margin_of_safety" onclick="window.stockScreen.setSort('margin_of_safety')">MoS% <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="pe_ratio"         onclick="window.stockScreen.setSort('pe_ratio')">P/E <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="pb_ratio"         onclick="window.stockScreen.setSort('pb_ratio')">P/B <span class="sort-arrow"></span></th>
+          <th>FCF</th>
+          <th>Exchange</th>
+        </tr>
+      </thead>
+      <tbody id="ssBody">
+        <tr><td colspan="10" class="empty-msg">Run a scan or wait for Sunday's automatic scan to populate the stock universe.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Bottom pagination -->
+  <div id="ssPaginationBottom" class="ss-pagination" style="margin-top:12px;"></div>
+
+</div>
+
+<!-- ── Stock Detail Modal ───────────────────────────────────────── -->
+<div id="ssModal" class="ss-modal-overlay hidden" onclick="window.stockScreen.closeModal(event)">
+  <div class="ss-modal" onclick="event.stopPropagation()">
+    <div class="ss-modal-header">
+      <div>
+        <div class="ss-modal-symbol" id="ssModalSymbol"></div>
+        <div class="ss-modal-name"   id="ssModalName"></div>
+      </div>
+      <div id="ssModalGrade" class="gs-grade-big"></div>
+      <button class="gs-close" onclick="window.stockScreen.closeModal()">✕</button>
+    </div>
+    <div class="ss-modal-body" id="ssModalBody">
+      <p style="color:var(--muted);text-align:center;padding:40px 0">Loading…</p>
+    </div>
+  </div>
+</div>

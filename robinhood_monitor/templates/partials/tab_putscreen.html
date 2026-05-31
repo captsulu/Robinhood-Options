@@ -1,0 +1,98 @@
+<!-- ── Put Screen Tab ─────────────────────────────────────────────── -->
+<div id="pane-putscreen" class="tab-pane hidden">
+
+  <!-- Header row -->
+  <div class="section-header" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+    <h2 style="margin:0;font-size:18px;font-weight:700;">📉 Put Screen</h2>
+    <span id="psStatsLabel" style="color:var(--muted);font-size:13px;"></span>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center;">
+      <div id="psScanStatus" class="ss-scan-status hidden"></div>
+      <button class="btn-sm btn-danger" onclick="window.putScreen.stopScan()" id="psStopBtn" style="display:none;">■ Stop</button>
+      <button class="btn-sm" onclick="window.putScreen.triggerScan(this)" id="psScanBtn">⚡ Scan Opportunities</button>
+    </div>
+  </div>
+
+  <!-- Scan progress bar -->
+  <div id="psScanProgress" class="ss-progress-wrap hidden">
+    <div class="ss-progress-bar"><div id="psScanBar" class="ss-progress-fill" style="width:0%"></div></div>
+    <span id="psScanProgressText" class="ss-progress-text">Starting…</span>
+  </div>
+
+  <!-- Filters -->
+  <div class="ss-controls">
+
+    <!-- Tier filter -->
+    <div class="ss-filter-group">
+      <span class="ss-filter-label">Tier:</span>
+      <button class="ss-chip ss-chip-active" data-tier=""          onclick="window.putScreen.setTier('')">All</button>
+      <button class="ss-chip ps-tier-legendary" data-tier="legendary" onclick="window.putScreen.setTier('legendary')">🏆 Legendary</button>
+      <button class="ss-chip ps-tier-epic"      data-tier="epic"      onclick="window.putScreen.setTier('epic')">⚡ Epic</button>
+      <button class="ss-chip ps-tier-rare"      data-tier="rare"      onclick="window.putScreen.setTier('rare')">💎 Rare</button>
+      <button class="ss-chip ps-tier-good"      data-tier="good"      onclick="window.putScreen.setTier('good')">✓ Good</button>
+    </div>
+
+    <!-- Grade filter -->
+    <div class="ss-filter-group">
+      <span class="ss-filter-label">Grade:</span>
+      <button class="ss-chip ss-chip-active" data-ps-grade=""  onclick="window.putScreen.setGrade('')">All</button>
+      <button class="ss-chip grade-A"        data-ps-grade="A" onclick="window.putScreen.setGrade('A')">A</button>
+      <button class="ss-chip grade-B"        data-ps-grade="B" onclick="window.putScreen.setGrade('B')">B</button>
+    </div>
+
+    <!-- Collateral filter -->
+    <div class="ss-filter-group">
+      <span class="ss-filter-label">Collateral:</span>
+      <button class="ss-chip ss-chip-active" data-ps-coll=""    onclick="window.putScreen.setCollateral('')">Any</button>
+      <button class="ss-chip" data-ps-coll="100"  onclick="window.putScreen.setCollateral(100)">$100</button>
+      <button class="ss-chip" data-ps-coll="200"  onclick="window.putScreen.setCollateral(200)">$200</button>
+      <button class="ss-chip" data-ps-coll="300"  onclick="window.putScreen.setCollateral(300)">$300</button>
+      <button class="ss-chip" data-ps-coll="500"  onclick="window.putScreen.setCollateral(500)">$500</button>
+    </div>
+
+    <!-- News risk toggle -->
+    <button class="ss-preset-btn" id="psHideRiskBtn"
+            onclick="window.putScreen.toggleHideRisk()"
+            title="Hide opportunities with high news risk (earnings / major events)">
+      🛡️ Hide High Risk
+    </button>
+
+  </div>
+
+  <!-- Results count + top pagination -->
+  <div class="ss-results-bar">
+    <span id="psResultCount" style="color:var(--muted);font-size:13px;"></span>
+    <div id="psPaginationTop" class="ss-pagination"></div>
+  </div>
+
+  <!-- Opportunities table -->
+  <div class="table-wrap ss-table-wrap">
+    <table id="psTable" class="ss-table">
+      <thead>
+        <tr>
+          <th>Tier</th>
+          <th class="ss-th-sort" data-col="symbol"        onclick="window.putScreen.setSort('symbol')">Ticker <span class="sort-arrow"></span></th>
+          <th>Company</th>
+          <th class="ss-th-sort" data-col="current_price" onclick="window.putScreen.setSort('current_price')">Price <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="expiration"    onclick="window.putScreen.setSort('expiration')">Expiry <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="dte"           onclick="window.putScreen.setSort('dte')">DTE <span class="sort-arrow"></span></th>
+          <th>Spread</th>
+          <th class="ss-th-sort" data-col="collateral"    onclick="window.putScreen.setSort('collateral')">Collateral <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="net_premium"   onclick="window.putScreen.setSort('net_premium')">Premium <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="delta"         onclick="window.putScreen.setSort('delta')">Delta <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="iv"            onclick="window.putScreen.setSort('iv')">IV% <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="otm_pct"       onclick="window.putScreen.setSort('otm_pct')">OTM% <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="roi_pct"       onclick="window.putScreen.setSort('roi_pct')">ROI% <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="annualised_roi" onclick="window.putScreen.setSort('annualised_roi')">Ann.ROI% <span class="sort-arrow"></span></th>
+          <th>Risk</th>
+        </tr>
+      </thead>
+      <tbody id="psBody">
+        <tr><td colspan="15" class="empty-msg">Run a scan to find put-spread opportunities.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Bottom pagination -->
+  <div id="psPaginationBottom" class="ss-pagination" style="margin-top:12px;"></div>
+
+</div>

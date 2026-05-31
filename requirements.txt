@@ -1,0 +1,8 @@
+# Python libraries required for the Cash-Secured Puts Bot + Auto-Scanner
+# Install all at once by running:
+#   pip install -r requirements.txt
+
+rauth==0.7.3        # Handles OAuth login with eTrade API
+requests==2.31.0    # Sends/receives data over the internet (also used for Barchart)
+yfinance>=0.2.38    # Live stock quotes, options chains, and timestamps (Yahoo Finance)
+python-dotenv>=1.0  # Loads API credentials from the .env file automatically

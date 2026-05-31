@@ -1,0 +1,235 @@
+<!-- ── Covered Call Finder tab ─────────────────────────────────────────── -->
+<style>
+/* ── cc-opt-count badge ─────────────────────────────────────── */
+.cc-opt-count {
+  display: inline-block;
+  padding: 2px 8px;
+  background: rgba(88,166,255,.15);
+  color: var(--blue);
+  border: 1px solid rgba(88,166,255,.35);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.cc-opt-count:hover {
+  background: rgba(88,166,255,.3);
+  color: var(--fg);
+}
+
+/* ── Popup overlay ──────────────────────────────────────────── */
+#ccPopupOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 900;
+}
+#ccPopup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 901;
+  width: min(900px, 96vw);
+  max-height: 80vh;
+  background: var(--card-bg, #161b22);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,.6);
+}
+#ccPopupHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+#ccPopupTitle { flex: 1; min-width: 0; }
+#ccPopupGrade { flex-shrink: 0; }
+#ccPopupClose {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 20px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+#ccPopupClose:hover { color: var(--fg); }
+#ccPopupScroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 4px 12px;
+}
+#ccPopupTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+#ccPopupTable th {
+  position: sticky;
+  top: 0;
+  background: var(--card-bg, #161b22);
+  padding: 8px 12px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: .04em;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+#ccPopupTable th:first-child { text-align: left; }
+#ccPopupTable td {
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.cc-popup-row td { text-align: right; }
+.cc-popup-row td:first-child { text-align: left; font-weight: 600; }
+.cc-popup-row:hover { background: rgba(255,255,255,.03); }
+</style>
+
+<div id="pane-coveredcalls" class="tab-pane hidden">
+
+  <!-- Stats bar -->
+  <div class="ss-stats-bar">
+    <span id="ccStatsLabel" class="ss-stats-text">No opportunities scanned yet</span>
+    <button class="ss-scan-btn" id="ccScanBtn"
+            onclick="window.coveredCalls.triggerScan(this)">📞 Scan Opportunities</button>
+    <button class="ss-stop-btn" id="ccStopBtn" style="display:none"
+            onclick="window.coveredCalls.stopScan()">⏹ Stop</button>
+  </div>
+
+  <!-- Scan progress bar -->
+  <div id="ccScanProgress" class="ss-scan-progress hidden">
+    <div class="ss-scan-bar-wrap">
+      <div id="ccScanBar" class="ss-scan-bar" style="width:0%"></div>
+    </div>
+    <span id="ccScanProgressText" class="ss-scan-progress-text"></span>
+  </div>
+  <span id="ccScanStatus" class="ss-scan-status hidden"></span>
+
+  <!-- ── Grade filter chips ──────────────────────────────────────────── -->
+  <div class="ss-filter-row">
+    <span class="ss-filter-label">Grade</span>
+    <button class="ss-chip ss-chip-active" data-cc-grade="" onclick="window.coveredCalls.setGrade('')">All</button>
+    <button class="ss-chip grade-A" data-cc-grade="A" onclick="window.coveredCalls.setGrade('A')">A</button>
+    <button class="ss-chip grade-B" data-cc-grade="B" onclick="window.coveredCalls.setGrade('B')">B</button>
+    <button class="ss-chip grade-C" data-cc-grade="C" onclick="window.coveredCalls.setGrade('C')">C</button>
+    <button class="ss-chip grade-D" data-cc-grade="D" onclick="window.coveredCalls.setGrade('D')">D</button>
+    <button class="ss-chip grade-F" data-cc-grade="F" onclick="window.coveredCalls.setGrade('F')">F</button>
+  </div>
+
+  <!-- ── Criteria filter chips ──────────────────────────────────────── -->
+  <div class="ss-filter-row">
+    <span class="ss-filter-label">Criteria</span>
+    <button class="ss-chip ss-chip-active" data-cc-crit="" onclick="window.coveredCalls.setCriteria('')">All</button>
+    <button class="ss-chip" data-cc-crit="delta20" onclick="window.coveredCalls.setCriteria('delta20')">20Δ Call</button>
+    <button class="ss-chip" data-cc-crit="otm20"   onclick="window.coveredCalls.setCriteria('otm20')">20% OTM</button>
+    <button class="ss-chip" data-cc-crit="cheap"   onclick="window.coveredCalls.setCriteria('cheap')">≤$10 Stock</button>
+  </div>
+
+  <!-- ── Tier filter chips ──────────────────────────────────────────── -->
+  <div class="ss-filter-row">
+    <span class="ss-filter-label">Tier</span>
+    <button class="ss-chip ss-chip-active" data-cc-tier="" onclick="window.coveredCalls.setTier('')">All</button>
+    <button class="ss-chip ps-tier-legendary" data-cc-tier="legendary" onclick="window.coveredCalls.setTier('legendary')">🏆 Legendary</button>
+    <button class="ss-chip ps-tier-epic"      data-cc-tier="epic"      onclick="window.coveredCalls.setTier('epic')">⚡ Epic</button>
+    <button class="ss-chip ps-tier-rare"      data-cc-tier="rare"      onclick="window.coveredCalls.setTier('rare')">💎 Rare</button>
+    <button class="ss-chip ps-tier-good"      data-cc-tier="good"      onclick="window.coveredCalls.setTier('good')">✓ Good</button>
+  </div>
+
+  <!-- ── Portfolio / budget toggles ────────────────────────────────── -->
+  <div class="ss-filter-row">
+    <button class="ss-preset-btn ss-preset-active" id="ccHideOwnedBtn"
+            onclick="window.coveredCalls.toggleHideOwned()"
+            title="Exclude stocks you already own or have covered-call contracts on">
+      🚫 Exclude Owned
+    </button>
+    <button class="ss-preset-btn" id="ccAffordBtn"
+            onclick="window.coveredCalls.toggleAffordOnly()"
+            title="Only show stocks where 100 shares ≤ your available buying power">
+      💰 Affordable (100 sh)
+    </button>
+    <button class="ss-preset-btn" id="ccHideRiskBtn"
+            onclick="window.coveredCalls.toggleHideRisk()"
+            title="Exclude stocks with earnings or high-impact news events">
+      🛡 Hide High-Risk
+    </button>
+  </div>
+
+  <!-- Result count + pagination top -->
+  <div class="ss-results-bar">
+    <span id="ccResultCount" class="ss-result-count"></span>
+    <div id="ccPaginationTop" class="ss-pagination"></div>
+  </div>
+
+  <!-- ── Opportunities table ─────────────────────────────────────────── -->
+  <div class="ss-table-wrap">
+    <table id="ccTable" class="ss-table">
+      <thead>
+        <tr>
+          <th class="ss-th-sort" data-col="tier"              onclick="window.coveredCalls.setSort('tier')">Tier <span class="sort-arrow"></span></th>
+          <th>Symbol / Grade</th>
+          <th>Company</th>
+          <th class="ss-th-sort" data-col="current_price"     onclick="window.coveredCalls.setSort('current_price')">Price <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="current_price"     onclick="window.coveredCalls.setSort('current_price')">Cost (100 sh) <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="expiration"        onclick="window.coveredCalls.setSort('expiration')">Best Expiry <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="dte"               onclick="window.coveredCalls.setSort('dte')">DTE <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="strike"            onclick="window.coveredCalls.setSort('strike')">Strike <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="otm_pct"           onclick="window.coveredCalls.setSort('otm_pct')">OTM% <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="premium_per_share" onclick="window.coveredCalls.setSort('premium_per_share')">Premium <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="delta"             onclick="window.coveredCalls.setSort('delta')">Delta <span class="sort-arrow"></span></th>
+          <th class="ss-th-sort" data-col="annualised_roi"    onclick="window.coveredCalls.setSort('annualised_roi')">Ann.ROI <span class="sort-arrow"></span></th>
+          <th>Options</th>
+          <th>Risk</th>
+        </tr>
+      </thead>
+      <tbody id="ccBody">
+        <tr><td colspan="14" class="empty-msg">No opportunities found — run a scan first.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination bottom -->
+  <div class="ss-results-bar" style="margin-top:8px">
+    <div id="ccPaginationBottom" class="ss-pagination"></div>
+  </div>
+
+</div>
+
+<!-- ── Covered Call options popup ──────────────────────────────────────── -->
+<div id="ccPopupOverlay" class="hidden" onclick="window.coveredCalls.closePopup()"></div>
+<div id="ccPopup" class="hidden">
+  <div id="ccPopupHeader">
+    <div id="ccPopupTitle"></div>
+    <div id="ccPopupGrade"></div>
+    <button id="ccPopupClose" onclick="window.coveredCalls.closePopup()" title="Close">✕</button>
+  </div>
+  <div id="ccPopupScroll">
+    <table id="ccPopupTable">
+      <thead>
+        <tr>
+          <th>Strike</th>
+          <th>OTM%</th>
+          <th>Prem/sh</th>
+          <th>Prem/contract</th>
+          <th>Delta</th>
+          <th>IV</th>
+          <th>Ann.ROI</th>
+          <th>Tier</th>
+          <th>Criteria</th>
+        </tr>
+      </thead>
+      <tbody id="ccPopupBody"></tbody>
+    </table>
+  </div>
+</div>

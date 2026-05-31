@@ -1,0 +1,35 @@
+<div id="pane-collateral" class="tab-pane hidden">
+  <section class="section">
+    <h2 class="section-title">
+      🔒 Collateral Breakdown
+      <span style="font-size:12px;font-weight:400;color:var(--muted);margin-left:10px;">
+        Cash locked as collateral by open options positions
+      </span>
+    </h2>
+
+    <div class="cards-row" style="margin-bottom:20px;">
+      <div class="card" style="border-color:rgba(240,136,62,.4);">
+        <div class="card-label" style="color:var(--orange);">Total Locked</div>
+        <div class="card-value" id="colTabTotal" style="color:var(--orange);">--</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Released on expiry or close</div>
+      </div>
+      <div class="card card-highlight">
+        <div class="card-label">Withdrawable Cash</div>
+        <div class="card-value" id="colTabWithdrawable">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Total Cash</div>
+        <div class="card-value" id="colTabCash">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Cash − Collateral</div>
+        <div class="card-value" id="colTabFree">--</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Unencumbered cash</div>
+      </div>
+    </div>
+
+    <div id="collateralBreakdown">
+      <p class="hint">Run a scan to populate collateral data.</p>
+    </div>
+  </section>
+</div><!-- end pane-collateral -->
