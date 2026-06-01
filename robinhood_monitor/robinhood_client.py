@@ -277,6 +277,98 @@ class RobinhoodClient:
             logger.warning(f"Could not fetch bank transfers: {e}")
             return []
 
+    # ── Options Income History ────────────────────────────────────────────────
+
+    def get_options_order_history(self):
+        """
+        Fetch all filled options orders from Robinhood.
+        Returns a list of normalised dicts ready for the options_income table.
+
+        net_premium sign convention:
+          credit orders (sell to open / buy to close that nets credit) → positive
+          debit  orders (buy to open / buy to close at a cost)         → negative
+        """
+        try:
+            import robin_stocks.robinhood as rh
+            raw = rh.orders.get_all_option_orders() or []
+            result = []
+            for order in raw:
+                if not order:
+                    continue
+                state = (order.get('state') or '').lower()
+                if state != 'filled':
+                    continue
+                try:
+                    processed_premium = float(order.get('processed_premium') or 0)
+                    direction         = (order.get('direction') or 'debit').lower()
+                    net_premium = processed_premium if direction == 'credit' else -processed_premium
+
+                    created_at = order.get('created_at') or ''
+                    order_date = created_at[:10] if created_at else ''
+
+                    legs = order.get('legs') or [{}]
+                    leg  = legs[0] if legs else {}
+
+                    option_url  = leg.get('option') or ''
+                    option_data = {}
+                    if option_url:
+                        try:
+                            option_data = rh.helper.request_get(option_url) or {}
+                        except Exception:
+                            pass
+
+                    result.append({
+                        'rh_order_id':       order.get('id', ''),
+                        'symbol':            order.get('chain_symbol', '').upper(),
+                        'option_type':       option_data.get('type') or leg.get('option_type', ''),
+                        'strike_price':      float(option_data.get('strike_price') or 0),
+                        'expiration_date':   option_data.get('expiration_date') or '',
+                        'opening_strategy':  order.get('opening_strategy') or '',
+                        'closing_strategy':  order.get('closing_strategy') or '',
+                        'direction':         direction,
+                        'quantity':          float(order.get('processed_quantity') or
+                                                   order.get('quantity') or 0),
+                        'processed_premium': processed_premium,
+                        'net_premium':       round(net_premium, 2),
+                        'order_date':        order_date,
+                        'state':             state,
+                    })
+                except Exception as inner_e:
+                    logger.debug(f"Skipping options order: {inner_e}")
+
+            logger.info(f"Fetched {len(result)} filled options orders")
+            return result
+        except Exception as e:
+            logger.error(f"Error fetching options order history: {e}")
+            return []
+
+    def sync_options_income_to_db(self):
+        """
+        Sync all filled options orders into the options_income table.
+        Uses INSERT OR IGNORE — safe to call repeatedly.
+        Returns count of orders processed.
+        """
+        from database import upsert_options_income
+        orders = self.get_options_order_history()
+        for o in orders:
+            upsert_options_income(
+                rh_order_id      = o['rh_order_id'],
+                symbol           = o['symbol'],
+                option_type      = o['option_type'],
+                strike_price     = o['strike_price'],
+                expiration_date  = o['expiration_date'],
+                opening_strategy = o['opening_strategy'],
+                closing_strategy = o['closing_strategy'],
+                direction        = o['direction'],
+                quantity         = o['quantity'],
+                processed_premium= o['processed_premium'],
+                net_premium      = o['net_premium'],
+                order_date       = o['order_date'],
+                state            = o['state'],
+            )
+        logger.info(f"Synced {len(orders)} options income records to DB")
+        return len(orders)
+
     def sync_transfers_to_db(self):
         """
         Fetch bank transfers from Robinhood and upsert into the local DB.

@@ -85,6 +85,29 @@ def init_db():
         'ON transfers (rh_id) WHERE rh_id IS NOT NULL'
     )
 
+    # ── Options Income ────────────────────────────────────────────────────────
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS options_income (
+            id               INTEGER PRIMARY KEY AUTOINCREMENT,
+            rh_order_id      TEXT    UNIQUE NOT NULL,
+            symbol           TEXT    NOT NULL,
+            option_type      TEXT,
+            strike_price     REAL,
+            expiration_date  TEXT,
+            opening_strategy TEXT,
+            closing_strategy TEXT,
+            direction        TEXT,
+            quantity         REAL,
+            processed_premium REAL,
+            net_premium      REAL    NOT NULL,
+            order_date       TEXT    NOT NULL,
+            state            TEXT,
+            created_at       TEXT    NOT NULL
+        )
+    ''')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_income_date   ON options_income (order_date)')
+    c.execute('CREATE INDEX IF NOT EXISTS idx_income_symbol ON options_income (symbol)')
+
     conn.commit()
     conn.close()
 
@@ -295,6 +318,28 @@ def update_transfer_status(transfer_id, new_status):
     conn.close()
 
 
+def delete_transfer(transfer_id):
+    """
+    Delete a manually-entered transfer row.
+    Raises ValueError if the row does not exist or is not a manual entry.
+    Returns True on success.
+    """
+    conn = _connect()
+    row = conn.execute(
+        "SELECT source FROM transfers WHERE id=?", (transfer_id,)
+    ).fetchone()
+    if not row:
+        conn.close()
+        raise ValueError(f"Transfer {transfer_id} not found")
+    if row[0] != 'manual':
+        conn.close()
+        raise ValueError("Only manual transfers can be deleted")
+    conn.execute("DELETE FROM transfers WHERE id=?", (transfer_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
 def upsert_transfer_by_rhid(rh_id, transfer_date, amount, direction, status, notes=''):
     """
     Insert a Robinhood-sourced transfer, or update its status if it already exists.
@@ -326,3 +371,137 @@ def prune_old_data(days=30):
     conn.execute('DELETE FROM price_history WHERE timestamp < ?', (cutoff,))
     conn.commit()
     conn.close()
+
+
+# ── Options Income ────────────────────────────────────────────────────────────
+
+def upsert_options_income(rh_order_id, symbol, option_type, strike_price,
+                          expiration_date, opening_strategy, closing_strategy,
+                          direction, quantity, processed_premium, net_premium,
+                          order_date, state):
+    """Insert a filled options order, or skip if already recorded."""
+    conn = _connect()
+    conn.execute(
+        '''INSERT OR IGNORE INTO options_income
+           (rh_order_id, symbol, option_type, strike_price, expiration_date,
+            opening_strategy, closing_strategy, direction, quantity,
+            processed_premium, net_premium, order_date, state, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+        (rh_order_id, symbol.upper(), option_type, strike_price, expiration_date,
+         opening_strategy, closing_strategy, direction, quantity,
+         processed_premium, net_premium, order_date, state,
+         datetime.now().isoformat())
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_income_summary():
+    """
+    Return WTD / MTD / YTD net premium totals and trade counts.
+    Only counts filled, credit + debit orders (net_premium can be negative for buy-backs).
+    """
+    now   = datetime.now()
+    today = now.strftime('%Y-%m-%d')
+
+    # Start of current ISO week (Monday)
+    monday = (now - timedelta(days=now.weekday())).strftime('%Y-%m-%d')
+    # Start of current month
+    month_start = now.strftime('%Y-%m-01')
+    # Start of current year
+    year_start  = now.strftime('%Y-01-01')
+
+    conn = _connect()
+
+    def _query(start):
+        row = conn.execute(
+            "SELECT COALESCE(SUM(net_premium),0), COUNT(*) "
+            "FROM options_income WHERE order_date >= ? AND order_date <= ? AND state='filled'",
+            (start, today)
+        ).fetchone()
+        return {'total': round(row[0], 2), 'trades': row[1]}
+
+    def _credits(start):
+        row = conn.execute(
+            "SELECT COALESCE(SUM(net_premium),0), COUNT(*) "
+            "FROM options_income WHERE order_date >= ? AND order_date <= ? "
+            "AND state='filled' AND direction='credit'",
+            (start, today)
+        ).fetchone()
+        return {'total': round(row[0], 2), 'trades': row[1]}
+
+    def _debits(start):
+        row = conn.execute(
+            "SELECT COALESCE(SUM(ABS(net_premium)),0) "
+            "FROM options_income WHERE order_date >= ? AND order_date <= ? "
+            "AND state='filled' AND direction='debit'",
+            (start, today)
+        ).fetchone()
+        return round(row[0], 2)
+
+    result = {
+        'wtd':  _query(monday),
+        'mtd':  _query(month_start),
+        'ytd':  _query(year_start),
+        'wtd_credits':  _credits(monday)['total'],
+        'mtd_credits':  _credits(month_start)['total'],
+        'ytd_credits':  _credits(year_start)['total'],
+        'wtd_debits':   _debits(monday),
+        'mtd_debits':   _debits(month_start),
+        'ytd_debits':   _debits(year_start),
+    }
+    conn.close()
+    return result
+
+
+def get_income_by_month(months=12):
+    """Return monthly net_premium totals for the last N months."""
+    from datetime import date
+    cutoff = (datetime.now() - timedelta(days=months * 31)).strftime('%Y-%m-%d')
+    conn   = _connect()
+    rows   = conn.execute(
+        "SELECT strftime('%Y-%m', order_date) as month, "
+        "  COALESCE(SUM(CASE WHEN direction='credit' THEN net_premium ELSE 0 END), 0) as credits, "
+        "  COALESCE(SUM(CASE WHEN direction='debit'  THEN ABS(net_premium) ELSE 0 END), 0) as debits, "
+        "  COALESCE(SUM(net_premium), 0) as net "
+        "FROM options_income "
+        "WHERE order_date >= ? AND state='filled' "
+        "GROUP BY month ORDER BY month",
+        (cutoff,)
+    ).fetchall()
+    conn.close()
+    return [{'month': r[0], 'credits': round(r[1], 2),
+             'debits': round(r[2], 2), 'net': round(r[3], 2)} for r in rows]
+
+
+def get_income_trades(limit=200):
+    """Return recent filled options income trades, newest first."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT rh_order_id, symbol, option_type, strike_price, expiration_date, "
+        "  opening_strategy, closing_strategy, direction, quantity, "
+        "  processed_premium, net_premium, order_date, state "
+        "FROM options_income WHERE state='filled' "
+        "ORDER BY order_date DESC, id DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+    conn.close()
+    cols = ['rh_order_id', 'symbol', 'option_type', 'strike_price', 'expiration_date',
+            'opening_strategy', 'closing_strategy', 'direction', 'quantity',
+            'processed_premium', 'net_premium', 'order_date', 'state']
+    return [dict(zip(cols, r)) for r in rows]
+
+
+def get_income_by_symbol(limit=20):
+    """Return net premium grouped by symbol, best performers first."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT symbol, "
+        "  COALESCE(SUM(net_premium), 0) as net, "
+        "  COUNT(*) as trades "
+        "FROM options_income WHERE state='filled' "
+        "GROUP BY symbol ORDER BY net DESC LIMIT ?",
+        (limit,)
+    ).fetchall()
+    conn.close()
+    return [{'symbol': r[0], 'net': round(r[1], 2), 'trades': r[2]} for r in rows]

@@ -17,7 +17,9 @@ from flask import Flask, jsonify, render_template, request
 from config_manager import load_config, save_config
 from database import (get_price_history, get_recent_alerts, get_tracked_symbols,
                       get_cash_snapshots, init_db, prune_old_data,
-                      get_transfers, get_capital_summary, seed_initial_transfers)
+                      get_transfers, get_capital_summary, seed_initial_transfers,
+                      delete_transfer, get_income_summary, get_income_by_month,
+                      get_income_trades, get_income_by_symbol)
 from monitor import MonitorEngine, is_trading_window
 
 # Logging
@@ -64,12 +66,33 @@ def _run_scan():
             _state['message'] = str(e)
 
 
+def _run_weekly_stock_scan():
+    """Trigger the full stock universe scan (NYSE + Nasdaq + AMEX).
+    Designed to run overnight Saturday so results are ready for Monday open."""
+    try:
+        from stock_universe_scanner import StockUniverseScanner
+        scanner = StockUniverseScanner()
+        logger.info("Weekly stock universe scan started (Saturday night schedule)")
+        scanner.run_full_scan()
+        logger.info("Weekly stock universe scan complete")
+    except Exception as e:
+        logger.error(f"Weekly stock scan error: {e}", exc_info=True)
+
+
 def _background_monitor():
     config   = load_config()
     interval = max(1, config.get('scan_interval_minutes', 5))
     logger.info(f"Background monitor started - scanning every {interval} min")
     _run_scan()
     schedule.every(interval).minutes.do(_run_scan)
+
+    # Weekly stock universe scan — Saturday at 01:00 local time
+    schedule.every().saturday.at("01:00").do(
+        lambda: threading.Thread(target=_run_weekly_stock_scan, daemon=True,
+                                 name='weekly-stock-scan').start()
+    )
+    logger.info("Weekly stock scan scheduled: Saturday 01:00")
+
     while True:
         schedule.run_pending()
         time.sleep(20)
@@ -204,6 +227,48 @@ def api_clear_transfer(transfer_id):
     try:
         update_transfer_status(transfer_id, 'cleared')
         return jsonify({'success': True, 'transfers': get_transfers(), 'summary': get_capital_summary()})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/income')
+def api_income():
+    """Return WTD/MTD/YTD premium income summary + recent trades."""
+    return jsonify({
+        'summary':    get_income_summary(),
+        'by_month':   get_income_by_month(months=12),
+        'trades':     get_income_trades(limit=200),
+        'by_symbol':  get_income_by_symbol(limit=20),
+    })
+
+
+@app.route('/api/income/sync', methods=['POST'])
+def api_sync_income():
+    """Pull all filled options orders from Robinhood and store them."""
+    try:
+        if not _engine.client.ensure_logged_in():
+            return jsonify({'success': False, 'message': 'Not logged in'}), 401
+        count = _engine.client.sync_options_income_to_db()
+        return jsonify({
+            'success':   True,
+            'synced':    count,
+            'summary':   get_income_summary(),
+            'by_month':  get_income_by_month(months=12),
+            'trades':    get_income_trades(limit=200),
+            'by_symbol': get_income_by_symbol(limit=20),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/transfers/<int:transfer_id>', methods=['DELETE'])
+def api_delete_transfer(transfer_id):
+    """Delete a manually-entered transfer row."""
+    try:
+        delete_transfer(transfer_id)
+        return jsonify({'success': True, 'transfers': get_transfers(), 'summary': get_capital_summary()})
+    except ValueError as e:
+        return jsonify({'success': False, 'message': str(e)}), 400
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 

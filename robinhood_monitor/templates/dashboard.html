@@ -314,10 +314,15 @@ tbody td { padding: 9px 12px; vertical-align: middle; }
 
 <!-- ── Tab Bar ─────────────────────────────────────────────────────── -->
 <div class="tab-bar">
-  <button class="tab-btn active" id="tab-dashboard" onclick="showTab('dashboard')">📊 Dashboard</button>
-  <button class="tab-btn" id="tab-collateral" onclick="showTab('collateral')">🔒 Collateral</button>
-  <button class="tab-btn" id="tab-transfers" onclick="showTab('transfers')">💵 Transfers</button>
-  <button class="tab-btn" id="tab-logs" onclick="showTab('logs')">📋 Logs</button>
+  <button class="tab-btn active" id="tab-dashboard"    onclick="showTab('dashboard')">📊 Dashboard</button>
+  <button class="tab-btn"        id="tab-cashstatus"   onclick="showTab('cashstatus')">💵 Cash Status</button>
+  <button class="tab-btn"        id="tab-stockscanner" onclick="showTab('stockscanner')">📈 Stock Scanner</button>
+  <button class="tab-btn"        id="tab-income"       onclick="showTab('income')">💰 Premium Income</button>
+  <button class="tab-btn"        id="tab-coveredcalls" onclick="showTab('coveredcalls')">📞 Covered Calls</button>
+  <button class="tab-btn"        id="tab-putspread"    onclick="showTab('putspread')">📉 Put Spread</button>
+  <button class="tab-btn"        id="tab-collateral"   onclick="showTab('collateral')">🔒 Collateral</button>
+  <button class="tab-btn"        id="tab-transfers"    onclick="showTab('transfers')">💸 Transfers</button>
+  <button class="tab-btn"        id="tab-logs"         onclick="showTab('logs')">📋 Logs</button>
 </div>
 
 <main>
@@ -358,89 +363,27 @@ tbody td { padding: 9px 12px; vertical-align: middle; }
     </div>
   </div>
 
-  <!-- ── Cash & Funds ─────────────────────────────────────────────── -->
-  <section class="section">
-    <h2 class="section-title collapsible" onclick="toggleSection('cash')">
-      Cash &amp; Funds
-      <span class="collapse-arrow">▼</span>
-      <button class="btn-sm" onclick="event.stopPropagation(); refreshCash()">↻ Refresh</button>
+  <!-- ── ⚡ 0DTE Positions (shown only when present) ─────────────── -->
+  <section class="section" id="zdte-section" style="display:none">
+    <h2 class="section-title" style="color:var(--red);display:flex;align-items:center;gap:8px;">
+      ⚡ 0DTE Positions
+      <span style="font-size:12px;font-weight:400;color:var(--muted);
+                   background:rgba(248,81,73,.12);border:1px solid rgba(248,81,73,.3);
+                   border-radius:10px;padding:2px 9px;">Expires Today — Act Now</span>
     </h2>
-    <div class="section-body" id="body-cash">
-      <div class="cards-row">
-        <div class="card card-highlight">
-          <div class="card-label">Withdrawable</div>
-          <div class="card-value" id="cashWithdrawable">--</div>
-        </div>
-        <div class="card">
-          <div class="card-label">
-            Buying Power
-            <label style="font-size:11px;font-weight:normal;display:flex;align-items:center;gap:4px;margin-top:5px;cursor:pointer">
-              <input type="checkbox" id="marginToggle" onchange="onMarginToggle()" style="accent-color:var(--blue);cursor:pointer">
-              <span style="color:var(--muted)">Include Margin</span>
-            </label>
-          </div>
-          <div class="card-value" id="cashBuyingPower">--</div>
-          <div id="marginNote" style="display:none;font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">No Gold margin on account</div>
-          <div id="marginAlt"  style="display:none;font-size:10px;color:var(--muted);margin-top:4px;"></div>
-        </div>
-        <div class="card">
-          <div class="card-label">Total Cash</div>
-          <div class="card-value" id="cashTotalCard">--</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Held for Orders</div>
-          <div class="card-value" id="cashHeld">--</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Uncleared</div>
-          <div class="card-value" id="cashUncleared">--</div>
-        </div>
-        <div class="card" id="collateralCard" style="border-color:rgba(240,136,62,.4)">
-          <div class="card-label" style="color:var(--orange)">🔒 Locked (Collateral)</div>
-          <div class="card-value" id="cashCollateral" style="color:var(--orange)">--</div>
-          <div style="font-size:10px;color:var(--muted);margin-top:4px;">Released on expiry/close</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Portfolio Equity</div>
-          <div class="card-value" id="cashEquity">--</div>
-        </div>
-      </div>
-      <div id="cashComparison"></div>
-    </div>
-  </section>
-
-  <!-- ── Capital & Returns ─────────────────────────────────────────── -->
-  <section class="section">
-    <h2 class="section-title collapsible" onclick="toggleSection('capital')">
-      Capital &amp; Returns
-      <span class="collapse-arrow">▼</span>
-      <button class="btn-sm" onclick="event.stopPropagation(); syncTransfers(this)">↻ Sync from Robinhood</button>
-    </h2>
-    <div class="section-body" id="body-capital">
-      <!-- P&L summary cards -->
-      <div class="cards-row" id="capitalCards">
-        <div class="card card-highlight">
-          <div class="card-label">Net Capital In</div>
-          <div class="card-value" id="capNetCapital">--</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px" id="capDepWith"></div>
-        </div>
-        <div class="card">
-          <div class="card-label">Pending (not counted)</div>
-          <div class="card-value pending-val" id="capPending">--</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Portfolio Equity</div>
-          <div class="card-value" id="capEquity">--</div>
-        </div>
-        <div class="card" id="capPnlCard">
-          <div class="card-label">Total P&amp;L</div>
-          <div class="card-value" id="capPnl">--</div>
-        </div>
-        <div class="card">
-          <div class="card-label">Return %</div>
-          <div class="card-value" id="capReturn">--</div>
-        </div>
-      </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Symbol</th><th>Strategy</th><th>Type</th><th>Strike</th>
+            <th>Expiration</th><th>DTE</th><th>Qty</th><th>Avg Price</th>
+            <th>Current</th><th>Distance</th><th>🔒 Collateral</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="zdteBody">
+          <tr><td colspan="12" class="empty-msg">No 0DTE positions.</td></tr>
+        </tbody>
+      </table>
     </div>
   </section>
 
@@ -488,6 +431,355 @@ tbody td { padding: 9px 12px; vertical-align: middle; }
   </section>
 
 </div><!-- end pane-dashboard -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  CASH STATUS TAB                                                   -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="pane-cashstatus" class="tab-pane hidden">
+
+  <!-- Cash & Funds -->
+  <section class="section">
+    <h2 class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      Cash &amp; Funds
+      <button class="btn-sm" onclick="refreshCash()">↻ Refresh</button>
+    </h2>
+    <div class="cards-row">
+      <div class="card card-highlight">
+        <div class="card-label">Withdrawable</div>
+        <div class="card-value" id="cashWithdrawable">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">
+          Buying Power
+          <label style="font-size:11px;font-weight:normal;display:flex;align-items:center;gap:4px;margin-top:5px;cursor:pointer">
+            <input type="checkbox" id="marginToggle" onchange="onMarginToggle()" style="accent-color:var(--blue);cursor:pointer">
+            <span style="color:var(--muted)">Include Margin</span>
+          </label>
+        </div>
+        <div class="card-value" id="cashBuyingPower">--</div>
+        <div id="marginNote" style="display:none;font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;">No Gold margin on account</div>
+        <div id="marginAlt"  style="display:none;font-size:10px;color:var(--muted);margin-top:4px;"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Total Cash</div>
+        <div class="card-value" id="cashTotalCard">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Held for Orders</div>
+        <div class="card-value" id="cashHeld">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Uncleared</div>
+        <div class="card-value" id="cashUncleared">--</div>
+      </div>
+      <div class="card" id="collateralCard" style="border-color:rgba(240,136,62,.4)">
+        <div class="card-label" style="color:var(--orange)">🔒 Locked (Collateral)</div>
+        <div class="card-value" id="cashCollateral" style="color:var(--orange)">--</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Released on expiry/close</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Portfolio Equity</div>
+        <div class="card-value" id="cashEquity">--</div>
+      </div>
+    </div>
+    <div id="cashComparison"></div>
+  </section>
+
+  <!-- Capital & Returns -->
+  <section class="section">
+    <h2 class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      Capital &amp; Returns
+      <button class="btn-sm" onclick="syncTransfers(this)">↻ Sync from Robinhood</button>
+    </h2>
+    <div class="cards-row" id="capitalCards">
+      <div class="card card-highlight">
+        <div class="card-label">Net Capital In</div>
+        <div class="card-value" id="capNetCapital">--</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px" id="capDepWith"></div>
+      </div>
+      <div class="card">
+        <div class="card-label">Pending (not counted)</div>
+        <div class="card-value pending-val" id="capPending">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Portfolio Equity</div>
+        <div class="card-value" id="capEquity">--</div>
+      </div>
+      <div class="card" id="capPnlCard">
+        <div class="card-label">Total P&amp;L</div>
+        <div class="card-value" id="capPnl">--</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Return %</div>
+        <div class="card-value" id="capReturn">--</div>
+      </div>
+    </div>
+  </section>
+
+</div><!-- end pane-cashstatus -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  STOCK SCANNER TAB                                                 -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="pane-stockscanner" class="tab-pane hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:2px;">📈 Stock Scanner</h2>
+      <div style="font-size:13px;color:var(--muted)">Benjamin Graham grading — NYSE, Nasdaq &amp; AMEX</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span id="ssLastRun" style="font-size:12px;color:var(--muted)"></span>
+      <span id="ssScanBadge" class="badge" style="display:none"></span>
+      <button class="btn-sm" onclick="ssTriggerScan(this)" id="ssScanBtn">⚡ Run Full Scan</button>
+      <button class="btn-sm" onclick="ssLoadTable()" id="ssRefreshBtn">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- Progress bar (hidden when not scanning) -->
+  <div id="ssScanProgressWrap" style="display:none;margin-bottom:14px;">
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;overflow:hidden;height:8px;">
+      <div id="ssScanProgressBar" style="height:100%;width:0%;background:var(--blue);transition:width .4s;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--muted);">
+      <span id="ssScanProgressText">Starting…</span>
+      <button style="background:none;border:none;color:var(--red);cursor:pointer;font-size:11px;" onclick="ssStopScan()">■ Stop</button>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;background:var(--surface);
+              border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;">
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Search</div>
+      <input type="text" id="ssSearchInput" placeholder="Ticker or name…"
+             oninput="ssApplyFilters()" style="width:170px;background:var(--bg);border:1px solid var(--border);
+             color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Grade</div>
+      <select id="ssGradeFilter" onchange="ssApplyFilters()"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);
+              padding:6px 10px;border-radius:6px;font-size:13px;">
+        <option value="">All</option>
+        <option value="A">A</option><option value="B">B</option>
+        <option value="C">C</option><option value="D">D</option><option value="F">F</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Max Price</div>
+      <select id="ssPriceFilter" onchange="ssApplyFilters()"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);
+              padding:6px 10px;border-radius:6px;font-size:13px;">
+        <option value="">Any</option>
+        <option value="100">≤ $100</option><option value="250">≤ $250</option>
+        <option value="500">≤ $500</option><option value="1000">≤ $1,000</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Exchange</div>
+      <select id="ssExchangeFilter" onchange="ssApplyFilters()"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);
+              padding:6px 10px;border-radius:6px;font-size:13px;">
+        <option value="">All</option>
+        <option value="NYSE">NYSE</option><option value="Nasdaq">Nasdaq</option><option value="AMEX">AMEX</option>
+      </select>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;padding-bottom:2px;">
+      <input type="checkbox" id="ssOptionsOnly" onchange="ssApplyFilters()"
+             checked style="accent-color:var(--blue);width:14px;height:14px;cursor:pointer;">
+      <label for="ssOptionsOnly" style="font-size:13px;cursor:pointer;color:var(--text);">Options listed only</label>
+    </div>
+  </div>
+
+  <!-- Stats cards -->
+  <div class="cards-row" style="margin-bottom:14px;" id="ssStatsRow" style="display:none">
+    <div class="card"><div class="card-label">Total Scanned</div><div class="card-value" id="ssStatTotal">--</div></div>
+    <div class="card"><div class="card-label">Grade A</div><div class="card-value" id="ssStatA" style="color:var(--green)">--</div></div>
+    <div class="card"><div class="card-label">Grade B</div><div class="card-value" id="ssStatB" style="color:var(--lime)">--</div></div>
+    <div class="card"><div class="card-label">With Options</div><div class="card-value" id="ssStatOpts" style="color:var(--blue)">--</div></div>
+    <div class="card"><div class="card-label">Last Scan</div><div class="card-value" style="font-size:14px;" id="ssStatDate">--</div></div>
+  </div>
+
+  <!-- Activity sparkline -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;
+              padding:14px;margin-bottom:14px;" id="ssChartWrap">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
+                letter-spacing:.05em;margin-bottom:8px;">Scan Progress — Stocks Graded</div>
+    <canvas id="ssScanChart" height="60"></canvas>
+  </div>
+
+  <!-- Results count -->
+  <div style="font-size:13px;color:var(--muted);margin-bottom:8px;" id="ssResultCount"></div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table id="ssTable">
+      <thead>
+        <tr>
+          <th onclick="ssSort('symbol')"        style="cursor:pointer">Ticker ↕</th>
+          <th>Company</th>
+          <th onclick="ssSort('current_price')" style="cursor:pointer">Price ↕</th>
+          <th onclick="ssSort('grade')"         style="cursor:pointer">Grade ↕</th>
+          <th onclick="ssSort('score')"         style="cursor:pointer">Score ↕</th>
+          <th onclick="ssSort('margin_of_safety')" style="cursor:pointer">MoS% ↕</th>
+          <th onclick="ssSort('pe_ratio')"      style="cursor:pointer">P/E ↕</th>
+          <th onclick="ssSort('pb_ratio')"      style="cursor:pointer">P/B ↕</th>
+          <th>FCF</th>
+          <th>Exchange</th>
+          <th>Research</th>
+        </tr>
+      </thead>
+      <tbody id="ssBody">
+        <tr><td colspan="11" class="empty-msg">
+          Run a scan or wait for the Saturday auto-scan to populate results.
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+</div><!-- end pane-stockscanner -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  PREMIUM INCOME TAB                                                -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="pane-income" class="tab-pane hidden">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+    <div>
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:2px;">💰 Premium Income</h2>
+      <div style="font-size:13px;color:var(--muted)">Options premium collected vs. cost-to-close</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <span id="incomeSyncTime" style="font-size:12px;color:var(--muted)"></span>
+      <button class="btn-sm" onclick="syncIncome(this)" id="incomeSyncBtn">↻ Sync from Robinhood</button>
+    </div>
+  </div>
+
+  <!-- WTD / MTD / YTD summary cards -->
+  <div class="cards-row" style="margin-bottom:16px;">
+    <div class="card card-highlight">
+      <div class="card-label">Week to Date</div>
+      <div class="card-value" id="incWtd" style="color:var(--green)">--</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="incWtdDetail"></div>
+    </div>
+    <div class="card card-highlight">
+      <div class="card-label">Month to Date</div>
+      <div class="card-value" id="incMtd" style="color:var(--green)">--</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="incMtdDetail"></div>
+    </div>
+    <div class="card card-highlight">
+      <div class="card-label">Year to Date</div>
+      <div class="card-value" id="incYtd" style="color:var(--green)">--</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;" id="incYtdDetail"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">YTD Credits</div>
+      <div class="card-value" id="incYtdCredits" style="color:var(--lime)">--</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Gross premium received</div>
+    </div>
+    <div class="card">
+      <div class="card-label">YTD Buy-backs</div>
+      <div class="card-value" id="incYtdDebits" style="color:var(--orange)">--</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Cost to close positions</div>
+    </div>
+  </div>
+
+  <!-- Monthly bar chart -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">
+      Monthly Premium — Credits vs Buy-backs vs Net
+    </div>
+    <canvas id="incomeChart" height="80"></canvas>
+  </div>
+
+  <!-- Top symbols -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:16px;">
+    <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:12px;">
+      Net Premium by Symbol
+    </div>
+    <div id="incomeBySymbol" style="display:flex;flex-wrap:wrap;gap:8px;"></div>
+  </div>
+
+  <!-- Trade history table -->
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div style="font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;">Trade History</div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <input type="text" id="incomeSearch" placeholder="Filter by symbol…"
+               oninput="incomeFilterTable(this.value)"
+               style="background:var(--bg);border:1px solid var(--border);color:var(--text);
+                      padding:5px 10px;border-radius:6px;font-size:12px;width:160px;">
+        <select id="incomeDirectionFilter" onchange="incomeFilterTable()"
+                style="background:var(--bg);border:1px solid var(--border);color:var(--text);
+                       padding:5px 10px;border-radius:6px;font-size:12px;">
+          <option value="">All</option>
+          <option value="credit">Credits only</option>
+          <option value="debit">Debits only</option>
+        </select>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="incomeTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Symbol</th>
+            <th>Type</th>
+            <th>Strike</th>
+            <th>Expiry</th>
+            <th>Strategy</th>
+            <th>Dir</th>
+            <th>Qty</th>
+            <th>Premium</th>
+            <th>Net</th>
+          </tr>
+        </thead>
+        <tbody id="incomeBody">
+          <tr><td colspan="10" class="empty-msg">Sync from Robinhood to load trade history.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div><!-- end pane-income -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  COVERED CALLS TAB                                                 -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="pane-coveredcalls" class="tab-pane hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div>
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:2px;">📞 Covered Call Scanner</h2>
+      <div style="font-size:13px;color:var(--muted)">Find premium-generating calls on stocks you hold or want to acquire</div>
+    </div>
+  </div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:32px;text-align:center;color:var(--muted);">
+    <div style="font-size:40px;margin-bottom:12px;">📞</div>
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px;">Covered Call Scanner</div>
+    <div style="font-size:13px;">Filters, results table, and premium calculator coming soon.</div>
+    <div style="font-size:12px;margin-top:8px;color:var(--muted);">Details to be configured in the next session.</div>
+  </div>
+</div><!-- end pane-coveredcalls -->
+
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  PUT SPREAD TAB                                                    -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="pane-putspread" class="tab-pane hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+    <div>
+      <h2 style="font-size:18px;font-weight:700;margin-bottom:2px;">📉 Put Spread Scanner</h2>
+      <div style="font-size:13px;color:var(--muted)">Identify credit put spreads with defined risk and income potential</div>
+    </div>
+  </div>
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
+              padding:32px;text-align:center;color:var(--muted);">
+    <div style="font-size:40px;margin-bottom:12px;">📉</div>
+    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px;">Put Spread Scanner</div>
+    <div style="font-size:13px;">Spread builder, max loss/gain calculator, and screening filters coming soon.</div>
+    <div style="font-size:12px;margin-top:8px;color:var(--muted);">Details to be configured in the next session.</div>
+  </div>
+</div><!-- end pane-putspread -->
 
 <!-- ══════════════════════════════════════════════════════════════════ -->
 <!--  LOGS TAB                                                          -->
@@ -626,6 +918,47 @@ let _charts         = {};   // symbol → Chart instance
 let _currentTol     = 2.0;
 let _settingsOpen   = false;
 
+// ── 0DTE: isolate expiring-today positions into their own section ──
+function render0DTE(positions) {
+  const section  = document.getElementById('zdte-section');
+  const zdteBody = document.getElementById('zdteBody');
+  if (!section || !zdteBody) return;
+
+  const zdte = positions.filter(p => p.dte === 0);
+  if (!zdte.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+
+  const fmtD = v => {
+    if (!v) return '--';
+    try { const [y,m,d] = v.split('-'); return parseInt(m)+'/'+parseInt(d)+'/'+y; } catch(e) { return v; }
+  };
+
+  zdteBody.innerHTML = zdte.map(p => {
+    const distSign = p.distance_pct >= 0 ? '+' : '';
+    const distStyle = p.distance_pct < 0
+      ? 'color:var(--red);font-weight:700'
+      : Math.abs(p.distance_pct) <= _currentTol ? 'color:var(--yellow)' : 'color:var(--green)';
+    const col = (p.collateral || 0) > 0
+      ? '<span style="color:var(--orange);font-weight:600;">$' + p.collateral.toLocaleString('en-US',{minimumFractionDigits:2}) + '</span>'
+      : (p.collateral_type === 'stock_secured' ? '<span style="color:var(--muted);font-size:11px;">Stock</span>' : '—');
+    return '<tr>' +
+      '<td class="sym-col">' + p.symbol + '</td>' +
+      '<td>' + strategyBadge(p) + '</td>' +
+      '<td>' + p.type.charAt(0).toUpperCase() + p.type.slice(1) +
+        ' <span class="pos-type ' + p.position_type + '">' + (p.position_type === 'long' ? 'Buy' : 'Sell') + '</span></td>' +
+      '<td class="num-col">$' + p.strike_price.toFixed(2) + '</td>' +
+      '<td>' + fmtD(p.expiration_date) + '</td>' +
+      '<td class="num-col text-critical" style="font-weight:700;">0d ⚡</td>' +
+      '<td class="num-col">' + p.quantity + '</td>' +
+      '<td class="num-col">$' + p.average_price.toFixed(2) + '</td>' +
+      '<td class="num-col">$' + p.current_price.toFixed(2) + '</td>' +
+      '<td class="num-col" style="' + distStyle + '">' + distSign + p.distance_pct.toFixed(1) + '%</td>' +
+      '<td class="num-col">' + col + '</td>' +
+      '<td>' + statusBadge(p.status) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
 // ── Tabs ───────────────────────────────────────────────────────────
 function showTab(name) {
   document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
@@ -633,9 +966,12 @@ function showTab(name) {
   document.getElementById('pane-' + name).classList.remove('hidden');
   document.getElementById('tab-'  + name).classList.add('active');
   try { localStorage.setItem('activeTab', name); } catch(e) {}
-  if (name === 'logs')       { loadAlerts(); loadCashHistory(); }
-  if (name === 'transfers')  { refreshTransfers(); }
-  if (name === 'collateral') { renderCollateralBreakdown(_positions, window._lastTotalCollateral || 0); }
+  if (name === 'logs')        { loadAlerts(); loadCashHistory(); }
+  if (name === 'transfers')   { refreshTransfers(); }
+  if (name === 'collateral')  { renderCollateralBreakdown(_positions, window._lastTotalCollateral || 0); }
+  if (name === 'cashstatus')  { refreshCash(); refreshTransfers(); }
+  if (name === 'stockscanner'){ ssLoadTable(); ssLoadStats(); }
+  if (name === 'income')      { incomeLoad(); }
 }
 
 // ── Settings ───────────────────────────────────────────────────────
@@ -683,11 +1019,11 @@ function saveSettings() {
 // ── Scan trigger ───────────────────────────────────────────────────
 function triggerScan() {
   const btn = document.getElementById('scanBtn');
-  btn.disabled = true; btn.textContent = '⏳ Scanning…';
+  btn.disabled = true; btn.textContent = 'Scanning...';
   fetch('/api/scan', {method:'POST'}).then(() => {
     setTimeout(() => {
       refresh();
-      btn.disabled = false; btn.textContent = '🔄 Scan Now';
+      btn.disabled = false; btn.textContent = '↻ Scan Now';
     }, 3500);
   });
 }
@@ -698,6 +1034,7 @@ function refresh() {
     _positions = data.positions || [];
     updateHeader(data);
     buildStrikeMap(_positions);
+    render0DTE(_positions);
     renderPositionsTable(_positions);
     renderCollateralBreakdown(_positions, data.total_collateral || 0);
     renderCharts();
@@ -745,6 +1082,8 @@ function buildStrikeMap(positions) {
 
 function renderPositionsTable(positions) {
   const tbody = document.getElementById('positionsBody');
+  // 0DTE positions are shown exclusively in the ⚡ 0DTE section above
+  positions = positions.filter(p => p.dte !== 0);
   if (!positions.length) {
     tbody.innerHTML = '<tr><td colspan="12" class="empty-msg">No open positions</td></tr>';
     return;
@@ -1080,41 +1419,36 @@ function onMarginToggle() {
 
 function renderCashComparison(snapshots) {
   const today    = new Date().toISOString().slice(0, 10);
-  const todayS   = snapshots.filter(s => s.recorded_at && s.recorded_at.startsWith(today));
+  const todayS   = snapshots.filter(s => s.date && s.date.startsWith(today));
   const openSnap = todayS.find(s => s.snapshot_type === 'open');
   const closeSnap= todayS.find(s => s.snapshot_type === 'close');
   const div      = document.getElementById('cashComparison');
-
+  if (!div) return;
   if (!openSnap && !closeSnap) {
     div.innerHTML = '<p class="hint" style="margin-top:10px">No open/close snapshots captured today yet.</p>';
     return;
   }
-  const fmt = v => (v != null && v !== undefined) ? '$' + parseFloat(v).toLocaleString('en-US', {minimumFractionDigits:2}) : '--';
+  const fmt = v => (v != null) ? '$' + parseFloat(v).toLocaleString('en-US', {minimumFractionDigits:2}) : '--';
   const delta = (a, b) => {
     if (a == null || b == null) return '';
     const d = parseFloat(b) - parseFloat(a);
-    const c = d >= 0 ? 'pos-delta' : 'neg-delta';
-    return '<span class="' + c + '">' + (d >= 0 ? '+' : '') + '$' + Math.abs(d).toFixed(2) + '</span>';
+    const cls = d >= 0 ? 'pos-delta' : 'neg-delta';
+    return '<span class="' + cls + '">' + (d >= 0 ? '+' : '') + '$' + Math.abs(d).toFixed(2) + '</span>';
   };
-  const o = openSnap  || {};
-  const c = closeSnap || {};
+  const o = openSnap || {}, c = closeSnap || {};
   div.innerHTML =
     '<div class="comparison-grid">' +
-      '<div class="comp-header"></div>' +
-      '<div class="comp-header">🔔 Open</div>' +
-      '<div class="comp-header">🔕 Close</div>' +
-      '<div class="comp-header">Change</div>' +
+      '<div class="comp-header"></div><div class="comp-header">🔔 Open</div>' +
+      '<div class="comp-header">🔕 Close</div><div class="comp-header">Change</div>' +
       '<div class="comp-label">Withdrawable</div>' +
       '<div>' + fmt(o.cash_available_for_withdrawal) + '</div>' +
       '<div>' + fmt(c.cash_available_for_withdrawal) + '</div>' +
       '<div>' + delta(o.cash_available_for_withdrawal, c.cash_available_for_withdrawal) + '</div>' +
       '<div class="comp-label">Buying Power</div>' +
-      '<div>' + fmt(o.buying_power) + '</div>' +
-      '<div>' + fmt(c.buying_power) + '</div>' +
+      '<div>' + fmt(o.buying_power) + '</div><div>' + fmt(c.buying_power) + '</div>' +
       '<div>' + delta(o.buying_power, c.buying_power) + '</div>' +
       '<div class="comp-label">Portfolio</div>' +
-      '<div>' + fmt(o.portfolio_equity) + '</div>' +
-      '<div>' + fmt(c.portfolio_equity) + '</div>' +
+      '<div>' + fmt(o.portfolio_equity) + '</div><div>' + fmt(c.portfolio_equity) + '</div>' +
       '<div>' + delta(o.portfolio_equity, c.portfolio_equity) + '</div>' +
     '</div>';
 }
@@ -1123,19 +1457,20 @@ function renderCashComparison(snapshots) {
 function loadAlerts() {
   fetch('/api/alerts').then(r => r.json()).then(alerts => {
     const tbody = document.getElementById('alertsBody');
+    if (!tbody) return;
     if (!alerts.length) {
       tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No alerts recorded yet</td></tr>';
       return;
     }
     tbody.innerHTML = alerts.map(a =>
       '<tr>' +
-      '<td style="white-space:nowrap">' + fmtTime(a.created_at) + '</td>' +
+      '<td style="white-space:nowrap">' + fmtTime(a.timestamp) + '</td>' +
       '<td class="sym-col">' + a.symbol + '</td>' +
-      '<td>' + statusBadge(a.status) + '</td>' +
+      '<td>' + statusBadge(a.alert_type) + '</td>' +
       '<td class="msg-col">' + (a.message || '') + '</td>' +
       '<td class="num-col">' + (a.current_price != null ? '$' + parseFloat(a.current_price).toFixed(2) : '--') + '</td>' +
       '<td class="num-col">' + (a.distance_pct  != null ? parseFloat(a.distance_pct).toFixed(1) + '%' : '--') + '</td>' +
-      '<td class="num-col">' + (a.dte            != null ? a.dte + 'd' : '--') + '</td>' +
+      '<td class="num-col">' + (a.dte != null ? a.dte + 'd' : '--') + '</td>' +
       '</tr>'
     ).join('');
   });
@@ -1145,6 +1480,7 @@ function loadCashHistory() {
   fetch('/api/cash').then(r => r.json()).then(data => {
     const snaps = data.snapshots || [];
     const tbody = document.getElementById('cashBody');
+    if (!tbody) return;
     if (!snaps.length) {
       tbody.innerHTML = '<tr><td colspan="6" class="empty-msg">No snapshots recorded yet</td></tr>';
       return;
@@ -1152,7 +1488,7 @@ function loadCashHistory() {
     const fmt = v => (v != null) ? '$' + parseFloat(v).toLocaleString('en-US', {minimumFractionDigits:2}) : '--';
     tbody.innerHTML = snaps.slice(0, 120).map(s =>
       '<tr>' +
-      '<td style="white-space:nowrap">' + fmtTime(s.recorded_at) + '</td>' +
+      '<td style="white-space:nowrap">' + fmtTime(s.timestamp) + '</td>' +
       '<td><span class="snap-type snap-' + s.snapshot_type + '">' + s.snapshot_type + '</span></td>' +
       '<td class="num-col">' + fmt(s.cash_available_for_withdrawal) + '</td>' +
       '<td class="num-col">' + fmt(s.buying_power) + '</td>' +
@@ -1171,7 +1507,6 @@ function takeManualSnapshot() {
 
 // ── Utilities ──────────────────────────────────────────────────────
 function fmtDate(s) {
-  // Convert YYYY-MM-DD to M/D/YYYY
   if (!s) return '--';
   try { const [y, m, d] = s.split('-'); return parseInt(m) + '/' + parseInt(d) + '/' + y; }
   catch(e) { return s; }
@@ -1195,7 +1530,7 @@ function refreshTransfers() {
 }
 
 function syncTransfers(btn) {
-  if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing...'; }
   fetch('/api/transfers/sync', {method:'POST'}).then(r => r.json()).then(data => {
     if (data.success) {
       renderCapitalCards(data.summary);
@@ -1207,19 +1542,16 @@ function syncTransfers(btn) {
 
 function renderCapitalCards(s) {
   if (!s) return;
-  const fmt  = v => '$' + parseFloat(v||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
-
-  document.getElementById('capNetCapital').textContent = fmt(s.net_capital);
-  document.getElementById('capPending').textContent    = s.pending_deposits > 0 ? fmt(s.pending_deposits) : '$0.00';
-  document.getElementById('capDepWith').textContent    =
+  const fmt = v => '$' + parseFloat(v||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const el = (id) => document.getElementById(id);
+  if (el('capNetCapital')) el('capNetCapital').textContent = fmt(s.net_capital);
+  if (el('capPending'))    el('capPending').textContent    = s.pending_deposits > 0 ? fmt(s.pending_deposits) : '$0.00';
+  if (el('capDepWith'))    el('capDepWith').textContent    =
     'Deposited ' + fmt(s.total_deposited) + (s.total_withdrawn > 0 ? ' / Withdrawn ' + fmt(s.total_withdrawn) : '');
 
-  // Equity comes from the cash panel (window._lastCashLive)
   const equity = window._lastCashLive ? parseFloat(window._lastCashLive.portfolio_equity || 0) : null;
-  const eqEl   = document.getElementById('capEquity');
-  const pnlEl  = document.getElementById('capPnl');
-  const retEl  = document.getElementById('capReturn');
-  const cardEl = document.getElementById('capPnlCard');
+  const eqEl   = el('capEquity'), pnlEl = el('capPnl'), retEl = el('capReturn'), cardEl = el('capPnlCard');
+  if (!eqEl) return;
 
   if (equity !== null) {
     eqEl.textContent = fmt(equity);
@@ -1229,30 +1561,36 @@ function renderCapitalCards(s) {
     retEl.textContent = (ret >= 0 ? '+' : '') + ret.toFixed(2) + '%';
     pnlEl.className   = 'card-value ' + (pnl > 0 ? 'pnl-pos' : pnl < 0 ? 'pnl-neg' : 'pnl-neutral');
     retEl.className   = 'card-value ' + (ret > 0 ? 'pnl-pos' : ret < 0 ? 'pnl-neg' : 'pnl-neutral');
-    cardEl.className  = 'card ' + (pnl > 0 ? 'card-pnl-pos' : pnl < 0 ? 'card-pnl-neg' : '');
+    if (cardEl) cardEl.className = 'card ' + (pnl > 0 ? 'card-pnl-pos' : pnl < 0 ? 'card-pnl-neg' : '');
   } else {
     eqEl.textContent  = '(loading…)';
     pnlEl.textContent = '--';
     retEl.textContent = '--';
   }
-  // store summary so equity updates re-render the P&L
   window._lastCapSummary = s;
 }
 
 function renderXferTable(transfers) {
   const tbody = document.getElementById('xferBody');
+  if (!tbody) return;
   if (!transfers || !transfers.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="empty-msg">No transfers recorded</td></tr>';
     return;
   }
   const fmt = v => '$' + parseFloat(v||0).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
   tbody.innerHTML = transfers.map(t => {
-    const dirCls = t.direction === 'deposit' ? 'dir-deposit' : 'dir-withdrawal';
-    const stCls  = 'status-' + t.status;
+    const dirCls   = t.direction === 'deposit' ? 'dir-deposit' : 'dir-withdrawal';
+    const stCls    = 'status-' + t.status;
+    const isManual = t.source === 'manual';
     const clearBtn = t.status === 'pending'
       ? '<button class="clear-btn" onclick="markCleared(' + t.id + ', this)">✓ Mark Cleared</button>'
       : '';
-    const src = t.source === 'robinhood' ? '🤖 RH' : '✏ Manual';
+    const delBtn = isManual
+      ? '<button onclick="deleteTransfer(' + t.id + ', this)" title="Remove manual entry" ' +
+        'style="background:none;border:1px solid rgba(248,81,73,.4);color:var(--red);border-radius:4px;' +
+        'padding:2px 7px;font-size:12px;cursor:pointer;margin-left:4px;">🗑</button>'
+      : '';
+    const src = isManual ? '✏ Manual' : '🤖 RH';
     return '<tr>' +
       '<td style="white-space:nowrap">' + fmtDate(t.transfer_date) + '</td>' +
       '<td class="' + dirCls + '">' + t.direction.charAt(0).toUpperCase() + t.direction.slice(1) + '</td>' +
@@ -1260,54 +1598,366 @@ function renderXferTable(transfers) {
       '<td class="' + stCls + '">' + t.status.charAt(0).toUpperCase() + t.status.slice(1) + '</td>' +
       '<td>' + src + '</td>' +
       '<td style="color:var(--muted);font-size:12px">' + (t.notes || '') + '</td>' +
-      '<td>' + clearBtn + '</td>' +
+      '<td style="white-space:nowrap">' + clearBtn + delBtn + '</td>' +
       '</tr>';
   }).join('');
 }
 
 function markCleared(id, btn) {
-  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
   fetch('/api/transfers/' + id + '/clear', {method:'POST'})
+    .then(r => r.json()).then(data => {
+      if (data.success) { renderCapitalCards(data.summary); renderXferTable(data.transfers); }
+    });
+}
+
+function deleteTransfer(id, btn) {
+  if (!confirm('Remove this manual transfer entry? This cannot be undone.')) return;
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+  fetch('/api/transfers/' + id, {method:'DELETE'})
     .then(r => r.json()).then(data => {
       if (data.success) {
         renderCapitalCards(data.summary);
         renderXferTable(data.transfers);
+      } else {
+        alert('Could not delete: ' + (data.message || 'unknown error'));
+        if (btn) { btn.disabled = false; btn.textContent = 'X'; }
       }
-    });
+    }).catch(() => { if (btn) { btn.disabled = false; btn.textContent = 'X'; } });
 }
 
-// ── Collapsible sections ───────────────────────────────────────────
-function toggleSection(id) {
-  const body  = document.getElementById('body-' + id);
-  const title = body.previousElementSibling;
-  const open  = !body.classList.contains('hidden');
-  body.classList.toggle('hidden', open);
-  title.classList.toggle('collapsed', open);
-  try { localStorage.setItem('section-' + id, open ? 'collapsed' : 'open'); } catch(e) {}
+// ── Stock Scanner ──────────────────────────────────────────────────
+let _ssAllRows = [], _ssSortCol = 'grade', _ssSortAsc = true, _ssScanChart = null, _ssScanPoll = null;
+
+function ssLoadStats() {
+  fetch('/api/stock-universe/stats').then(r => r.json()).then(d => {
+    const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    el('ssStatTotal', d.total_active || '--');
+    el('ssStatA',     d.grade_A  || 0);
+    el('ssStatB',     d.grade_B  || 0);
+    el('ssStatOpts',  d.has_options || '--');
+    el('ssStatDate',  d.last_scan ? new Date(d.last_scan).toLocaleDateString() : 'Never');
+    el('ssLastRun',   d.last_scan ? 'Last scan: ' + new Date(d.last_scan).toLocaleString() : 'No scan yet');
+  }).catch(() => {});
 }
 
-function restoreSections() {
-  ['cash', 'capital'].forEach(id => {
-    try {
-      const state = localStorage.getItem('section-' + id);
-      if (state === 'collapsed') {
-        const body  = document.getElementById('body-' + id);
-        const title = body.previousElementSibling;
-        body.classList.add('hidden');
-        title.classList.add('collapsed');
-      }
-    } catch(e) {}
+function ssLoadTable() {
+  ssLoadStats();
+  fetch('/api/stock-universe').then(r => r.json()).then(rows => {
+    _ssAllRows = rows || [];
+    ssApplyFilters();
+  }).catch(() => {
+    const b = document.getElementById('ssBody');
+    if (b) b.innerHTML = '<tr><td colspan="11" class="empty-msg">Could not load — run a scan first.</td></tr>';
   });
+}
+
+function ssApplyFilters() {
+  const search   = (document.getElementById('ssSearchInput')?.value || '').toUpperCase();
+  const grade    = document.getElementById('ssGradeFilter')?.value   || '';
+  const maxP     = parseFloat(document.getElementById('ssPriceFilter')?.value  || '') || Infinity;
+  const exchange = document.getElementById('ssExchangeFilter')?.value || '';
+  const optsOnly = document.getElementById('ssOptionsOnly')?.checked ?? true;
+
+  let rows = _ssAllRows.filter(r =>
+    (!search   || r.symbol.includes(search) || (r.company_name||'').toUpperCase().includes(search)) &&
+    (!grade    || r.grade === grade) &&
+    (r.current_price == null || r.current_price <= maxP) &&
+    (!exchange || r.exchange === exchange) &&
+    (!optsOnly || r.has_options)
+  );
+
+  rows.sort((a, b) => {
+    let av = a[_ssSortCol], bv = b[_ssSortCol];
+    if (typeof av === 'string') av = av || ''; if (typeof bv === 'string') bv = bv || '';
+    if (av == null) av = _ssSortAsc ?  Infinity : -Infinity;
+    if (bv == null) bv = _ssSortAsc ?  Infinity : -Infinity;
+    return _ssSortAsc ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
+  });
+
+  const count = document.getElementById('ssResultCount');
+  if (count) count.textContent = rows.length + ' stock' + (rows.length !== 1 ? 's' : '') + ' shown';
+
+  const tbody = document.getElementById('ssBody');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="11" class="empty-msg">No results match current filters.</td></tr>';
+    return;
+  }
+
+  const gc  = {A:'var(--green)',B:'var(--lime)',C:'var(--yellow)',D:'var(--orange)',F:'var(--red)'};
+  const fmt  = v => v != null ? '$' + parseFloat(v).toFixed(2) : '--';
+  const fmtN = v => v != null ? parseFloat(v).toFixed(1) : '--';
+  const fmtP = v => v != null ? parseFloat(v).toFixed(1) + '%' : '--';
+
+  tbody.innerHTML = rows.map(r => {
+    const gColor   = gc[r.grade] || 'var(--muted)';
+    const mosColor = r.margin_of_safety >= 30 ? 'var(--green)' : r.margin_of_safety >= 15 ? 'var(--yellow)' : 'var(--red)';
+    const fcf      = r.ttm_fcf != null
+      ? (r.ttm_fcf >= 0 ? '<span style="color:var(--green)">✓ Pos</span>' : '<span style="color:var(--red)">✗ Neg</span>')
+      : '--';
+    const optsBadge = r.has_options
+      ? '<span style="font-size:10px;background:rgba(88,166,255,.15);color:var(--blue);border-radius:3px;padding:1px 5px;">📋</span> '
+      : '';
+    const exch  = r.exchange === 'Nasdaq' ? 'NASDAQ' : (r.exchange || 'NYSE');
+    const yhLink = '<a href="https://finance.yahoo.com/quote/' + r.symbol +
+      '" target="_blank" style="color:var(--blue);font-size:11px;font-weight:600;text-decoration:none;">Y</a>';
+    const ggLink = '<a href="https://www.google.com/finance/quote/' + r.symbol + ':' + exch +
+      '" target="_blank" style="color:var(--green);font-size:11px;font-weight:600;text-decoration:none;margin-left:6px;">G</a>';
+    return '<tr>' +
+      '<td style="font-weight:700">' + optsBadge + r.symbol + '</td>' +
+      '<td style="font-size:12px;color:var(--muted)">' + (r.company_name || '') + '</td>' +
+      '<td class="num-col">' + fmt(r.current_price) + '</td>' +
+      '<td class="num-col" style="font-weight:700;color:' + gColor + '">' + (r.grade || '--') + '</td>' +
+      '<td class="num-col">' + fmtN(r.score) + '</td>' +
+      '<td class="num-col" style="color:' + mosColor + '">' + fmtP(r.margin_of_safety) + '</td>' +
+      '<td class="num-col">' + fmtN(r.pe_ratio) + '</td>' +
+      '<td class="num-col">' + fmtN(r.pb_ratio) + '</td>' +
+      '<td>' + fcf + '</td>' +
+      '<td style="font-size:11px;color:var(--muted)">' + (r.exchange || '--') + '</td>' +
+      '<td>' + yhLink + ggLink + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function ssSort(col) {
+  _ssSortAsc = (_ssSortCol === col) ? !_ssSortAsc : true;
+  _ssSortCol = col;
+  ssApplyFilters();
+}
+
+function ssTriggerScan(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting...'; }
+  fetch('/api/stock-universe/scan', {method:'POST'}).then(r => r.json()).then(d => {
+    if (!d.success) {
+      alert('Could not start scan: ' + (d.message || ''));
+      if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Full Scan'; }
+      return;
+    }
+    document.getElementById('ssScanProgressWrap').style.display = '';
+    _ssScanPoll = setInterval(ssPollProgress, 2000);
+  }).catch(() => { if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Full Scan'; } });
+}
+
+function ssPollProgress() {
+  fetch('/api/stock-universe/scan/status').then(r => r.json()).then(p => {
+    const pct = p.total > 0 ? Math.round(p.done / p.total * 100) : 0;
+    const bar = document.getElementById('ssScanProgressBar');
+    const txt = document.getElementById('ssScanProgressText');
+    if (bar) bar.style.width = pct + '%';
+    if (txt) txt.textContent = p.current ? p.current + ' (' + p.done + '/' + p.total + ')' : (p.message || 'Scanning…');
+
+    if (p.done > 0) {
+      const canvas = document.getElementById('ssScanChart');
+      if (canvas) {
+        if (!_ssScanChart) {
+          _ssScanChart = new Chart(canvas, {
+            type: 'bar',
+            data: { labels:[], datasets:[{data:[], backgroundColor:[]}] },
+            options: { plugins:{legend:{display:false}}, scales:{x:{display:false},y:{display:false}}, animation:{duration:0} }
+          });
+        }
+        const rem = Math.max(0, p.total - p.done - (p.errors||0) - (p.skipped||0));
+        _ssScanChart.data.labels = ['Done','Errors','Skipped','Remaining'];
+        _ssScanChart.data.datasets[0].data = [p.done, p.errors||0, p.skipped||0, rem];
+        _ssScanChart.data.datasets[0].backgroundColor =
+          ['rgba(63,185,80,.6)','rgba(248,81,73,.6)','rgba(210,153,34,.6)','rgba(139,148,158,.2)'];
+        _ssScanChart.update();
+      }
+    }
+    if (!p.running) {
+      clearInterval(_ssScanPoll); _ssScanPoll = null;
+      document.getElementById('ssScanProgressWrap').style.display = 'none';
+      const btn = document.getElementById('ssScanBtn');
+      if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Full Scan'; }
+      ssLoadTable();
+    }
+  }).catch(() => {});
+}
+
+function ssStopScan() {
+  fetch('/api/stock-universe/scan/stop', {method:'POST'}).catch(() => {});
+  if (_ssScanPoll) { clearInterval(_ssScanPoll); _ssScanPoll = null; }
+  document.getElementById('ssScanProgressWrap').style.display = 'none';
+  const btn = document.getElementById('ssScanBtn');
+  if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Full Scan'; }
+}
+
+// ── Premium Income ─────────────────────────────────────────────────
+let _incomeData    = null;
+let _incomeTrades  = [];
+let _incomeChart   = null;
+
+function incomeLoad() {
+  fetch('/api/income').then(r => r.json()).then(data => {
+    _incomeData   = data;
+    _incomeTrades = data.trades || [];
+    incomeRenderSummary(data.summary);
+    incomeRenderChart(data.by_month || []);
+    incomeRenderSymbols(data.by_symbol || []);
+    incomeRenderTable(_incomeTrades);
+  }).catch(() => {});
+}
+
+function syncIncome(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Syncing...'; }
+  fetch('/api/income/sync', {method:'POST'}).then(r => r.json()).then(data => {
+    if (!data.success) { alert('Sync failed: ' + (data.message || '')); }
+    else {
+      _incomeTrades = data.trades || [];
+      incomeRenderSummary(data.summary);
+      incomeRenderChart(data.by_month || []);
+      incomeRenderSymbols(data.by_symbol || []);
+      incomeRenderTable(_incomeTrades);
+      const el = document.getElementById('incomeSyncTime');
+      if (el) el.textContent = 'Synced ' + new Date().toLocaleTimeString();
+    }
+  }).catch(e => { alert('Sync error: ' + e); })
+  .finally(() => {
+    if (btn) { btn.disabled = false; btn.textContent = '↻ Sync from Robinhood'; }
+  });
+}
+
+function incomeRenderSummary(s) {
+  if (!s) return;
+  const fmt = v => '$' + Math.abs(parseFloat(v||0)).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const fmtSigned = v => {
+    const n = parseFloat(v||0);
+    return (n >= 0 ? '+$' : '-$') + Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  };
+  const color = v => parseFloat(v||0) >= 0 ? 'var(--green)' : 'var(--red)';
+
+  const set = (id, val, col) => {
+    const el = document.getElementById(id);
+    if (el) { el.textContent = val; if (col) el.style.color = col; }
+  };
+
+  set('incWtd',  fmtSigned(s.wtd.total),  color(s.wtd.total));
+  set('incMtd',  fmtSigned(s.mtd.total),  color(s.mtd.total));
+  set('incYtd',  fmtSigned(s.ytd.total),  color(s.ytd.total));
+  set('incYtdCredits', '+' + fmt(s.ytd_credits));
+  set('incYtdDebits',  '-' + fmt(s.ytd_debits));
+
+  const detail = (s_obj, credits, debits) =>
+    s_obj.trades + ' trade' + (s_obj.trades !== 1 ? 's' : '') +
+    ' | +' + fmt(credits) + ' / -' + fmt(debits);
+
+  set('incWtdDetail', detail(s.wtd, s.wtd_credits, s.wtd_debits));
+  set('incMtdDetail', detail(s.mtd, s.mtd_credits, s.mtd_debits));
+  set('incYtdDetail', detail(s.ytd, s.ytd_credits, s.ytd_debits));
+}
+
+function incomeRenderChart(byMonth) {
+  const canvas = document.getElementById('incomeChart');
+  if (!canvas) return;
+
+  const labels  = byMonth.map(m => m.month);
+  const credits = byMonth.map(m => m.credits);
+  const debits  = byMonth.map(m => m.debits);
+  const nets    = byMonth.map(m => m.net);
+
+  if (_incomeChart) { _incomeChart.destroy(); _incomeChart = null; }
+
+  _incomeChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Credits',  data: credits, backgroundColor: 'rgba(63,185,80,.7)',  order: 2 },
+        { label: 'Buy-backs',data: debits,  backgroundColor: 'rgba(248,81,73,.5)',  order: 2 },
+        { label: 'Net',      data: nets,    type: 'line', borderColor: '#58a6ff',
+          backgroundColor: 'rgba(88,166,255,.15)', pointRadius: 3, tension: 0.3,
+          fill: true, order: 1 },
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { labels: { color: '#8b949e', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' $' + ctx.parsed.y.toLocaleString('en-US', {minimumFractionDigits:2})
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#8b949e' }, grid: { color: 'rgba(48,54,61,.6)' } },
+        y: {
+          ticks: {
+            color: '#8b949e',
+            callback: v => '$' + v.toLocaleString('en-US', {minimumFractionDigits:0})
+          },
+          grid: { color: 'rgba(48,54,61,.6)' }
+        }
+      }
+    }
+  });
+}
+
+function incomeRenderSymbols(bySymbol) {
+  const div = document.getElementById('incomeBySymbol');
+  if (!div) return;
+  if (!bySymbol.length) { div.innerHTML = '<span style="color:var(--muted);font-size:13px">No data yet — sync first.</span>'; return; }
+  const fmt = v => '$' + Math.abs(parseFloat(v||0)).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  div.innerHTML = bySymbol.map(s => {
+    const isPos = s.net >= 0;
+    return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;' +
+      'padding:10px 14px;min-width:100px;text-align:center;">' +
+      '<div style="font-weight:700;font-size:14px;">' + s.symbol + '</div>' +
+      '<div style="font-size:16px;font-weight:700;color:' + (isPos ? 'var(--green)' : 'var(--red)') + ';margin:4px 0;">' +
+        (isPos ? '+' : '-') + fmt(s.net) + '</div>' +
+      '<div style="font-size:11px;color:var(--muted)">' + s.trades + ' trade' + (s.trades !== 1 ? 's' : '') + '</div>' +
+      '</div>';
+  }).join('');
+}
+
+function incomeRenderTable(trades) {
+  const tbody = document.getElementById('incomeBody');
+  if (!tbody) return;
+  if (!trades.length) {
+    tbody.innerHTML = '<tr><td colspan="10" class="empty-msg">No trades recorded — sync from Robinhood first.</td></tr>';
+    return;
+  }
+  const fmt = v => '$' + Math.abs(parseFloat(v||0)).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const strat = s => (s || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+  tbody.innerHTML = trades.map(t => {
+    const isCredit = t.direction === 'credit';
+    const netColor = parseFloat(t.net_premium||0) >= 0 ? 'var(--green)' : 'var(--red)';
+    return '<tr>' +
+      '<td style="white-space:nowrap;color:var(--muted)">' + fmtDate(t.order_date) + '</td>' +
+      '<td style="font-weight:700">' + t.symbol + '</td>' +
+      '<td style="text-transform:capitalize">' + (t.option_type || '--') + '</td>' +
+      '<td class="num-col">' + (t.strike_price ? '$' + parseFloat(t.strike_price).toFixed(2) : '--') + '</td>' +
+      '<td style="white-space:nowrap">' + fmtDate(t.expiration_date) + '</td>' +
+      '<td style="font-size:12px;color:var(--muted)">' + strat(t.opening_strategy || t.closing_strategy) + '</td>' +
+      '<td><span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;' +
+        'background:' + (isCredit ? 'rgba(63,185,80,.15)' : 'rgba(248,81,73,.15)') + ';' +
+        'color:' + (isCredit ? 'var(--green)' : 'var(--red)') + '">' +
+        (isCredit ? 'Credit' : 'Debit') + '</span></td>' +
+      '<td class="num-col">' + (t.quantity || '--') + '</td>' +
+      '<td class="num-col">' + fmt(t.processed_premium) + '</td>' +
+      '<td class="num-col" style="font-weight:700;color:' + netColor + '">' +
+        (parseFloat(t.net_premium||0) >= 0 ? '+' : '-') + fmt(t.net_premium) + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function incomeFilterTable(val) {
+  const search = (typeof val === 'string' ? val : (document.getElementById('incomeSearch')?.value || '')).toUpperCase();
+  const dir    = document.getElementById('incomeDirectionFilter')?.value || '';
+  const filtered = _incomeTrades.filter(t =>
+    (!search || t.symbol.includes(search)) &&
+    (!dir    || t.direction === dir)
+  );
+  incomeRenderTable(filtered);
 }
 
 // ── Init ───────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
-  restoreSections();
   refresh();
   refreshTransfers();
 
-  // Restore margin toggle before refreshCash so the first render uses it
   try {
     const saved = localStorage.getItem('bpMargin');
     if (saved !== null) document.getElementById('marginToggle').checked = (saved === '1');
@@ -1315,24 +1965,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   refreshCash();
 
-  // Restore last active tab
   let savedTab = 'dashboard';
   try { savedTab = localStorage.getItem('activeTab') || 'dashboard'; } catch(e) {}
   showTab(savedTab);
 
-  // Slider live-update label
   document.getElementById('tolSlider').addEventListener('input', function() {
     document.getElementById('tolValue').textContent = parseFloat(this.value).toFixed(1) + '%';
   });
-  // Email toggle enables/disables address field
   document.getElementById('emailToggle').addEventListener('change', function() {
     document.getElementById('emailAddr').disabled = !this.checked;
   });
 
-  // Auto-refresh
   setInterval(refresh,          30000);
   setInterval(refreshCash,      60000);
-  setInterval(refreshTransfers, 120000);   // re-check transfers every 2 min
+  setInterval(refreshTransfers, 120000);
 });
 </script>
 </body>

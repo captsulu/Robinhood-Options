@@ -35,7 +35,7 @@ SEC_TICKERS_URL = (
 SEC_USER_AGENT = 'RobinhoodMonitor/1.0 captsulu@gmail.com'
 
 # Exchanges we want to scan (NYSE, Nasdaq).  OTC and CBOE are excluded.
-TARGET_EXCHANGES = {'NYSE', 'Nasdaq'}
+TARGET_EXCHANGES = {'NYSE', 'Nasdaq', 'AMEX'}
 
 # Gap between yfinance requests.  Yahoo Finance rate-limits aggressively;
 # 1.5 s is conservative enough to avoid 429 errors overnight.

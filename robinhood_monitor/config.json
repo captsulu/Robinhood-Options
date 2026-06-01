@@ -1,5 +1,5 @@
 {
-  "tolerance_percent": 2.0,
+  "tolerance_percent": 1.0,
   "days_before_expiration_warning": 3,
   "scan_interval_minutes": 5,
   "desktop_notifications": true,
