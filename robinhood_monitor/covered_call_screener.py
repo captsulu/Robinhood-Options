@@ -297,6 +297,16 @@ class CoveredCallScreener:
                 if delta is None or delta > MAX_DELTA:
                     continue
 
+                # ── ROC Formula (user-defined) ─────────────────────────
+                # Period ROC  = (Credit / Collateral) × 100
+                #             = (Bid × 100) / (Strike × 100) × 100
+                #             = Bid / Strike × 100
+                # Annualized  = Period ROC × (365 / DTE)
+                credit        = round(bid * 100, 2)
+                collateral    = round(strike * 100, 2)
+                period_roc    = round((bid / strike * 100), 4) if strike > 0 else 0
+                annualized_roc = round(period_roc * (365 / dte), 2) if dte > 0 else 0
+
                 base = {
                     'symbol':            sym,
                     'company_name':      company_name,
@@ -311,10 +321,14 @@ class CoveredCallScreener:
                     'delta':             round(delta, 4),
                     'iv':                round(iv * 100, 2),
                     'otm_pct':           round(otm_frac * 100, 2),
+                    'credit':            credit,
+                    'collateral':        collateral,
+                    'period_roc':        period_roc,
+                    'annualized_roc':    annualized_roc,
                     'premium_per_share': round(mid, 4),
                     'roi_pct':           round(mid / price * 100, 2),
                     'annualised_roi':    ann_roi_pct,
-                    'tier':              _tier(ann_roi_pct),
+                    'tier':              _tier(annualized_roc),
                     'news_risk':         'low',
                     'news_flag':         '',
                     'scanned_at':        scanned_at,

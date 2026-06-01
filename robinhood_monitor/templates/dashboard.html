@@ -747,20 +747,130 @@ tbody td { padding: 9px 12px; vertical-align: middle; }
 <!--  COVERED CALLS TAB                                                 -->
 <!-- ══════════════════════════════════════════════════════════════════ -->
 <div id="pane-coveredcalls" class="tab-pane hidden">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
     <div>
       <h2 style="font-size:18px;font-weight:700;margin-bottom:2px;">📞 Covered Call Scanner</h2>
-      <div style="font-size:13px;color:var(--muted)">Find premium-generating calls on stocks you hold or want to acquire</div>
+      <div style="font-size:13px;color:var(--muted)">Stocks from DB graded by Benjamin Graham — options chain fetched live. Period ROC = (Bid / Strike) × 100</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <span id="ccScanTime" style="font-size:12px;color:var(--muted)"></span>
+      <button class="btn-sm" onclick="ccStopScan()" id="ccStopBtn" style="display:none;color:var(--red);">■ Stop</button>
+      <button class="btn-sm" onclick="ccTriggerScan(this)" id="ccScanBtn">⚡ Run Scan</button>
+      <button class="btn-sm" onclick="ccLoad()" id="ccRefreshBtn">↻ Refresh</button>
     </div>
   </div>
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;
-              padding:32px;text-align:center;color:var(--muted);">
-    <div style="font-size:40px;margin-bottom:12px;">📞</div>
-    <div style="font-size:16px;font-weight:600;color:var(--text);margin-bottom:8px;">Covered Call Scanner</div>
-    <div style="font-size:13px;">Filters, results table, and premium calculator coming soon.</div>
-    <div style="font-size:12px;margin-top:8px;color:var(--muted);">Details to be configured in the next session.</div>
+
+  <!-- Progress bar -->
+  <div id="ccProgressWrap" style="display:none;margin-bottom:14px;">
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;overflow:hidden;height:8px;">
+      <div id="ccProgressBar" style="height:100%;width:0%;background:var(--green);transition:width .4s;"></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:11px;color:var(--muted);">
+      <span id="ccProgressText">Starting...</span>
+    </div>
   </div>
+
+  <!-- Summary cards -->
+  <div class="cards-row" style="margin-bottom:14px;">
+    <div class="card"><div class="card-label">Opportunities Found</div><div class="card-value" id="ccCount">--</div></div>
+    <div class="card card-highlight"><div class="card-label">Best Ann. ROC</div><div class="card-value" id="ccBestRoc" style="color:var(--green)">--</div></div>
+    <div class="card"><div class="card-label">Legendary (≥40%)</div><div class="card-value" id="ccLegendary" style="color:var(--lime)">--</div></div>
+    <div class="card"><div class="card-label">Epic (≥30%)</div><div class="card-value" id="ccEpic" style="color:var(--blue)">--</div></div>
+    <div class="card"><div class="card-label">Grade A/B Only</div><div class="card-value" id="ccGradedAB">--</div></div>
+  </div>
+
+  <!-- Filters -->
+  <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;">
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Search Symbol</div>
+      <input type="text" id="ccSearch" placeholder="e.g. AAPL"
+             oninput="ccApplyFilters()"
+             style="width:130px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Graham Grade</div>
+      <select id="ccGradeFilter" onchange="ccApplyFilters()"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+        <option value="">All</option>
+        <option value="A">A</option><option value="B">B</option>
+        <option value="C">C</option><option value="D">D</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Tier</div>
+      <select id="ccTierFilter" onchange="ccApplyFilters()"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+        <option value="">All</option>
+        <option value="legendary">Legendary ≥40%</option>
+        <option value="epic">Epic ≥30%</option>
+        <option value="rare">Rare ≥25%</option>
+        <option value="good">Good ≥20%</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Max DTE</div>
+      <select id="ccDteFilter" onchange="ccApplyFilters()"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+        <option value="">Any</option>
+        <option value="0">0 DTE</option>
+        <option value="7">7 days</option>
+        <option value="21">21 days</option>
+        <option value="30">30 days</option>
+        <option value="60">60 days</option>
+      </select>
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">Min Ann. ROC %</div>
+      <input type="number" id="ccMinRoc" value="20" min="0" step="5"
+             oninput="ccApplyFilters()"
+             style="width:90px;background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+    </div>
+    <div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;">News Risk</div>
+      <select id="ccNewsFilter" onchange="ccApplyFilters()"
+              style="background:var(--bg);border:1px solid var(--border);color:var(--text);padding:6px 10px;border-radius:6px;font-size:13px;">
+        <option value="">All</option>
+        <option value="low">Low only</option>
+        <option value="medium">Low + Medium</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Result count -->
+  <div style="font-size:13px;color:var(--muted);margin-bottom:8px;" id="ccResultCount"></div>
+
+  <!-- Results table -->
+  <div class="table-wrap">
+    <table id="ccTable">
+      <thead>
+        <tr>
+          <th onclick="ccSort('symbol')" style="cursor:pointer;">Symbol ↕</th>
+          <th>Company</th>
+          <th onclick="ccSort('grade')" style="cursor:pointer;">Grade ↕</th>
+          <th onclick="ccSort('current_price')" style="cursor:pointer;">Stock $ ↕</th>
+          <th onclick="ccSort('strike')" style="cursor:pointer;">Strike ↕</th>
+          <th onclick="ccSort('dte')" style="cursor:pointer;">DTE ↕</th>
+          <th onclick="ccSort('bid')" style="cursor:pointer;">Bid ↕</th>
+          <th onclick="ccSort('credit')" style="cursor:pointer;">Credit ↕</th>
+          <th onclick="ccSort('collateral')" style="cursor:pointer;">Collateral ↕</th>
+          <th onclick="ccSort('period_roc')" style="cursor:pointer;">Period ROC ↕</th>
+          <th onclick="ccSort('annualized_roc')" style="cursor:pointer;">Ann. ROC ↕</th>
+          <th onclick="ccSort('delta')" style="cursor:pointer;">Delta ↕</th>
+          <th onclick="ccSort('iv')" style="cursor:pointer;">IV% ↕</th>
+          <th onclick="ccSort('otm_pct')" style="cursor:pointer;">OTM% ↕</th>
+          <th>Tier</th>
+          <th>News</th>
+        </tr>
+      </thead>
+      <tbody id="ccBody">
+        <tr><td colspan="16" class="empty-msg">Run a scan to populate covered call opportunities.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
 </div><!-- end pane-coveredcalls -->
+
 
 <!-- ══════════════════════════════════════════════════════════════════ -->
 <!--  PUT SPREAD TAB                                                    -->
@@ -972,6 +1082,7 @@ function showTab(name) {
   if (name === 'cashstatus')  { refreshCash(); refreshTransfers(); }
   if (name === 'stockscanner'){ ssLoadTable(); ssLoadStats(); }
   if (name === 'income')      { incomeLoad(); }
+  if (name === 'coveredcalls') { ccLoad(); }
 }
 
 // ── Settings ───────────────────────────────────────────────────────
@@ -1782,6 +1893,156 @@ function ssStopScan() {
   const btn = document.getElementById('ssScanBtn');
   if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Full Scan'; }
 }
+
+// ── Covered Call Scanner ───────────────────────────────────────────
+let _ccAllRows = [], _ccSortCol = 'annualized_roc', _ccSortAsc = false, _ccPoll = null;
+
+function ccLoad() {
+  fetch('/api/covered-calls')
+    .then(r => r.json())
+    .then(data => {
+      _ccAllRows = data.opportunities || [];
+      const st = document.getElementById('ccScanTime');
+      if (st && data.scan_time) st.textContent = 'Scanned: ' + new Date(data.scan_time).toLocaleString();
+      ccApplyFilters();
+      ccUpdateCards(_ccAllRows);
+    })
+    .catch(() => {});
+}
+
+function ccUpdateCards(rows) {
+  const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  el('ccCount', rows.length);
+  const best = rows.length ? rows.reduce((a, b) => (b.annualized_roc > a.annualized_roc ? b : a)) : null;
+  el('ccBestRoc', best ? best.annualized_roc.toFixed(1) + '%' : '--');
+  el('ccLegendary', rows.filter(r => r.tier === 'legendary').length);
+  el('ccEpic',      rows.filter(r => r.tier === 'epic').length);
+  el('ccGradedAB',  rows.filter(r => r.grade === 'A' || r.grade === 'B').length);
+}
+
+function ccApplyFilters() {
+  const search  = (document.getElementById('ccSearch')?.value || '').toUpperCase();
+  const grade   = document.getElementById('ccGradeFilter')?.value  || '';
+  const tier    = document.getElementById('ccTierFilter')?.value   || '';
+  const maxDte  = parseInt(document.getElementById('ccDteFilter')?.value  || '') || Infinity;
+  const minRoc  = parseFloat(document.getElementById('ccMinRoc')?.value  || '0') || 0;
+  const news    = document.getElementById('ccNewsFilter')?.value   || '';
+
+  let rows = _ccAllRows.filter(r =>
+    (!search || r.symbol.includes(search)) &&
+    (!grade  || r.grade === grade) &&
+    (!tier   || r.tier  === tier) &&
+    (r.dte   <= maxDte) &&
+    (r.annualized_roc >= minRoc) &&
+    (!news   || (news === 'low' ? r.news_risk === 'low' : r.news_risk !== 'high'))
+  );
+
+  rows.sort((a, b) => {
+    let av = a[_ccSortCol] ?? (_ccSortAsc ? Infinity : -Infinity);
+    let bv = b[_ccSortCol] ?? (_ccSortAsc ? Infinity : -Infinity);
+    if (typeof av === 'string') av = av.toLowerCase();
+    if (typeof bv === 'string') bv = bv.toLowerCase();
+    return _ccSortAsc ? (av < bv ? -1 : av > bv ? 1 : 0) : (av > bv ? -1 : av < bv ? 1 : 0);
+  });
+
+  const cnt = document.getElementById('ccResultCount');
+  if (cnt) cnt.textContent = rows.length + ' opportunit' + (rows.length !== 1 ? 'ies' : 'y') + ' shown';
+
+  const tbody = document.getElementById('ccBody');
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="16" class="empty-msg">No results — run a scan or adjust filters.</td></tr>';
+    return;
+  }
+
+  const tierColor = { legendary:'var(--lime)', epic:'var(--blue)', rare:'var(--purple)', good:'var(--green)', other:'var(--muted)' };
+  const gradeColor = { A:'var(--green)', B:'var(--lime)', C:'var(--yellow)', D:'var(--orange)', F:'var(--red)' };
+  const newsIcon   = { low:'<span style="color:var(--green)">✓ Low</span>', medium:'<span style="color:var(--yellow)">⚠ Med</span>', high:'<span style="color:var(--red)">🚨 High</span>' };
+  const fmt  = v => v != null ? '$' + parseFloat(v).toFixed(2) : '--';
+  const fmtP = v => v != null ? parseFloat(v).toFixed(2) + '%' : '--';
+  const fmtN = v => v != null ? parseFloat(v).toFixed(3) : '--';
+
+  tbody.innerHTML = rows.map(r => {
+    const rocColor = r.annualized_roc >= 40 ? 'var(--lime)' : r.annualized_roc >= 30 ? 'var(--blue)' : r.annualized_roc >= 20 ? 'var(--green)' : 'var(--muted)';
+    const tierBadge = '<span style="font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;' +
+      'background:rgba(0,0,0,.3);color:' + (tierColor[r.tier] || 'var(--muted)') + '">' +
+      (r.tier || '--') + '</span>';
+    return '<tr>' +
+      '<td style="font-weight:700">' + r.symbol + '</td>' +
+      '<td style="font-size:12px;color:var(--muted)">' + (r.company_name || '') + '</td>' +
+      '<td style="font-weight:700;color:' + (gradeColor[r.grade] || 'var(--muted)') + '">' + (r.grade || '--') + '</td>' +
+      '<td class="num-col">' + fmt(r.current_price) + '</td>' +
+      '<td class="num-col">' + fmt(r.strike) + '</td>' +
+      '<td class="num-col">' + (r.dte === 0 ? '<span style="color:var(--red);font-weight:700">0d</span>' : (r.dte + 'd')) + '</td>' +
+      '<td class="num-col" style="color:var(--green)">' + fmt(r.bid) + '</td>' +
+      '<td class="num-col" style="color:var(--green);font-weight:600">' + fmt(r.credit) + '</td>' +
+      '<td class="num-col" style="color:var(--orange)">' + fmt(r.collateral) + '</td>' +
+      '<td class="num-col">' + fmtP(r.period_roc) + '</td>' +
+      '<td class="num-col" style="font-weight:700;color:' + rocColor + '">' + fmtP(r.annualized_roc) + '</td>' +
+      '<td class="num-col">' + fmtN(r.delta) + '</td>' +
+      '<td class="num-col">' + (r.iv != null ? r.iv.toFixed(1) + '%' : '--') + '</td>' +
+      '<td class="num-col">' + (r.otm_pct != null ? r.otm_pct.toFixed(1) + '%' : '--') + '</td>' +
+      '<td>' + tierBadge + '</td>' +
+      '<td>' + (newsIcon[r.news_risk] || '--') + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function ccSort(col) {
+  _ccSortAsc = (_ccSortCol === col) ? !_ccSortAsc : false;
+  _ccSortCol = col;
+  ccApplyFilters();
+}
+
+function ccTriggerScan(btn) {
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting...'; }
+  fetch('/api/covered-calls/scan', {method: 'POST'})
+    .then(r => r.json())
+    .then(d => {
+      if (!d.success) {
+        alert('Could not start scan: ' + (d.message || ''));
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Scan'; }
+        return;
+      }
+      document.getElementById('ccProgressWrap').style.display = '';
+      document.getElementById('ccStopBtn').style.display = '';
+      _ccPoll = setInterval(ccPollProgress, 2500);
+    })
+    .catch(() => { if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Scan'; } });
+}
+
+function ccPollProgress() {
+  fetch('/api/covered-calls/scan/status')
+    .then(r => r.json())
+    .then(p => {
+      const pct = p.total > 0 ? Math.round(p.done / p.total * 100) : 0;
+      const bar = document.getElementById('ccProgressBar');
+      const txt = document.getElementById('ccProgressText');
+      if (bar) bar.style.width = pct + '%';
+      if (txt) txt.textContent = (p.current ? p.current + ' — ' : '') +
+        p.done + '/' + (p.total || '?') + ' stocks' +
+        (p.found ? ' | ' + p.found + ' opportunities found' : '');
+      if (!p.running) {
+        clearInterval(_ccPoll); _ccPoll = null;
+        document.getElementById('ccProgressWrap').style.display = 'none';
+        document.getElementById('ccStopBtn').style.display = 'none';
+        const btn = document.getElementById('ccScanBtn');
+        if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Scan'; }
+        ccLoad();
+      }
+    })
+    .catch(() => {});
+}
+
+function ccStopScan() {
+  fetch('/api/covered-calls/scan/stop', {method: 'POST'}).catch(() => {});
+  if (_ccPoll) { clearInterval(_ccPoll); _ccPoll = null; }
+  document.getElementById('ccProgressWrap').style.display = 'none';
+  document.getElementById('ccStopBtn').style.display = 'none';
+  const btn = document.getElementById('ccScanBtn');
+  if (btn) { btn.disabled = false; btn.textContent = '⚡ Run Scan'; }
+}
+
 
 // ── Premium Income ─────────────────────────────────────────────────
 let _incomeData    = null;

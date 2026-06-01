@@ -273,6 +273,188 @@ def api_delete_transfer(transfer_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+# ── Stock Universe ────────────────────────────────────────────────────────────
+
+_universe_scanner = None
+
+@app.route('/api/stock-universe')
+def api_stock_universe():
+    """Return graded stocks from the local DB (no live API call)."""
+    return jsonify(get_stock_universe(active_only=True))
+
+
+@app.route('/api/stock-universe/stats')
+def api_stock_universe_stats():
+    return jsonify(get_stock_universe_stats())
+
+
+@app.route('/api/stock-universe/scan', methods=['POST'])
+def api_trigger_universe_scan():
+    global _universe_scanner
+    from stock_universe_scanner import StockUniverseScanner
+    if _universe_scanner and _universe_scanner.progress.get('running'):
+        return jsonify({'success': False, 'message': 'Scan already running'}), 409
+    _universe_scanner = StockUniverseScanner()
+    t = threading.Thread(target=_universe_scanner.run_full_scan, daemon=True, name='universe-scan')
+    t.start()
+    return jsonify({'success': True, 'message': 'Stock universe scan started'})
+
+
+@app.route('/api/stock-universe/scan/status')
+def api_universe_scan_status():
+    global _universe_scanner
+    if not _universe_scanner:
+        return jsonify({'running': False, 'message': 'No scan started yet'})
+    return jsonify(_universe_scanner.progress)
+
+
+@app.route('/api/stock-universe/scan/stop', methods=['POST'])
+def api_stop_universe_scan():
+    global _universe_scanner
+    if _universe_scanner:
+        _universe_scanner._stop_event.set()
+    return jsonify({'success': True})
+
+
+# ── Stock Detail ──────────────────────────────────────────────────────────────
+
+@app.route('/api/stock-detail/<symbol>')
+def api_stock_detail(symbol):
+    try:
+        import yfinance as yf
+        ticker = yf.Ticker(symbol.upper())
+        info   = ticker.info or {}
+        hist   = ticker.history(period='1mo', interval='1d')
+        prices = []
+        if not hist.empty:
+            prices = [{'date': str(d.date()), 'close': round(float(c), 2)}
+                      for d, c in zip(hist.index, hist['Close'])]
+        return jsonify({
+            'symbol':        symbol.upper(),
+            'name':          info.get('shortName') or info.get('longName', ''),
+            'current_price': info.get('currentPrice') or info.get('regularMarketPrice'),
+            'market_cap':    info.get('marketCap'),
+            'pe_ratio':      info.get('trailingPE'),
+            'pb_ratio':      info.get('priceToBook'),
+            'week_52_high':  info.get('fiftyTwoWeekHigh'),
+            'week_52_low':   info.get('fiftyTwoWeekLow'),
+            'prices':        prices,
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ── Income ────────────────────────────────────────────────────────────────────
+
+@app.route('/api/income')
+def api_income():
+    return jsonify({
+        'summary':   get_income_summary(),
+        'by_month':  get_income_by_month(months=12),
+        'trades':    get_income_trades(limit=200),
+        'by_symbol': get_income_by_symbol(limit=20),
+    })
+
+
+@app.route('/api/income/sync', methods=['POST'])
+def api_sync_income():
+    try:
+        if not _engine.client.ensure_logged_in():
+            return jsonify({'success': False, 'message': 'Not logged in'}), 401
+        count = _engine.client.sync_options_income_to_db()
+        return jsonify({
+            'success':   True,
+            'synced':    count,
+            'summary':   get_income_summary(),
+            'by_month':  get_income_by_month(months=12),
+            'trades':    get_income_trades(limit=200),
+            'by_symbol': get_income_by_symbol(limit=20),
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+# ── Covered Calls ─────────────────────────────────────────────────────────────
+
+_cc_scanner = None
+
+@app.route('/api/covered-calls')
+def api_covered_calls():
+    tier  = request.args.get('tier')
+    grade = request.args.get('grade')
+    return jsonify({
+        'opportunities': get_covered_call_opportunities(tier=tier, grade=grade),
+        'scan_time':     get_covered_call_scan_time(),
+    })
+
+
+@app.route('/api/covered-calls/scan', methods=['POST'])
+def api_trigger_cc_scan():
+    global _cc_scanner
+    from covered_call_screener import CoveredCallScreener
+    if _cc_scanner and _cc_scanner.progress.get('running'):
+        return jsonify({'success': False, 'message': 'Scan already running'}), 409
+    _cc_scanner = CoveredCallScreener()
+    t = threading.Thread(target=_cc_scanner.run_scan, daemon=True, name='cc-scan')
+    t.start()
+    return jsonify({'success': True, 'message': 'Covered call scan started'})
+
+
+@app.route('/api/covered-calls/scan/status')
+def api_cc_scan_status():
+    global _cc_scanner
+    if not _cc_scanner:
+        return jsonify({'running': False, 'message': 'No scan started yet'})
+    return jsonify(_cc_scanner.progress)
+
+
+@app.route('/api/covered-calls/scan/stop', methods=['POST'])
+def api_stop_cc_scan():
+    global _cc_scanner
+    if _cc_scanner:
+        _cc_scanner.progress['running'] = False
+    return jsonify({'success': True})
+
+
+# ── Put Spreads ───────────────────────────────────────────────────────────────
+
+_put_scanner = None
+
+@app.route('/api/put-spreads')
+def api_put_spreads():
+    tier  = request.args.get('tier')
+    grade = request.args.get('grade')
+    return jsonify({'opportunities': get_put_opportunities(tier=tier, grade=grade)})
+
+
+@app.route('/api/put-spreads/scan', methods=['POST'])
+def api_trigger_put_scan():
+    global _put_scanner
+    from put_screener import PutScreener
+    if _put_scanner and _put_scanner.progress.get('running'):
+        return jsonify({'success': False, 'message': 'Scan already running'}), 409
+    _put_scanner = PutScreener()
+    t = threading.Thread(target=_put_scanner.run_scan, daemon=True, name='put-scan')
+    t.start()
+    return jsonify({'success': True, 'message': 'Put spread scan started'})
+
+
+@app.route('/api/put-spreads/scan/status')
+def api_put_scan_status():
+    global _put_scanner
+    if not _put_scanner:
+        return jsonify({'running': False, 'message': 'No scan started yet'})
+    return jsonify(_put_scanner.progress)
+
+
+@app.route('/api/put-spreads/scan/stop', methods=['POST'])
+def api_stop_put_scan():
+    global _put_scanner
+    if _put_scanner:
+        _put_scanner.progress['running'] = False
+    return jsonify({'success': True})
+
+
 # Entry point
 
 if __name__ == '__main__':
