@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 class RobinhoodClient:
     def __init__(self):
         self._logged_in = False
+        # Auth state exposed to the dashboard
+        self.auth_status  = 'disconnected'  # disconnected | connecting | needs_mfa | ok | error
+        self.auth_message = 'Not yet connected'
+        self._username    = None
+        self._password    = None
 
     # ── Auth ─────────────────────────────────────────────────────────────────
 
@@ -22,22 +27,98 @@ class RobinhoodClient:
             return True
         return self.login()
 
-    def login(self):
-        try:
-            import robin_stocks.robinhood as rh
-            username = os.getenv('ROBINHOOD_USERNAME')
-            password = os.getenv('ROBINHOOD_PASSWORD')
-            if not username or not password:
-                logger.error("ROBINHOOD_USERNAME or ROBINHOOD_PASSWORD not set in .env")
-                return False
-            rh.login(username, password)
-            self._logged_in = True
-            logger.info("Logged in to Robinhood successfully")
-            return True
-        except Exception as e:
-            logger.error(f"Robinhood login failed: {e}")
-            self._logged_in = False
+    def login(self, mfa_code=None):
+        """
+        Attempt Robinhood login.
+        If MFA is required and no mfa_code is supplied, sets auth_status='needs_mfa'
+        and returns False so the dashboard can prompt the user.
+        """
+        import robin_stocks.robinhood as rh
+
+        username = self._username or os.getenv('ROBINHOOD_USERNAME')
+        password = self._password or os.getenv('ROBINHOOD_PASSWORD')
+
+        if not username or not password:
+            self.auth_status  = 'error'
+            self.auth_message = 'ROBINHOOD_USERNAME or ROBINHOOD_PASSWORD not set in .env'
+            logger.error(self.auth_message)
             return False
+
+        # Cache credentials so submit_mfa() can use them without re-reading env
+        self._username = username
+        self._password = password
+
+        self.auth_status  = 'connecting'
+        self.auth_message = 'Connecting to Robinhood...'
+
+        try:
+            rh.login(username, password,
+                     mfa_code=mfa_code,
+                     store_session=True,
+                     pickle_name='robinhood_session')
+            self._logged_in   = True
+            self.auth_status  = 'ok'
+            self.auth_message = 'Connected'
+            logger.info("Logged in to Robinhood successfully")
+            self._notify_desktop("Robinhood Connected", "Successfully logged in.")
+            return True
+
+        except Exception as e:
+            err = str(e).lower()
+            self._logged_in = False
+
+            # Detect MFA / 2FA requirement
+            mfa_keywords = ['mfa', 'two factor', '2fa', 'verification code',
+                            'multi-factor', 'one-time', 'sms code', 'challenge']
+            if any(kw in err for kw in mfa_keywords) or 'enter' in err:
+                self.auth_status  = 'needs_mfa'
+                self.auth_message = 'MFA required — enter the code sent to your phone/email.'
+                logger.warning("Robinhood login requires MFA code")
+                self._notify_desktop(
+                    "Robinhood — Action Required",
+                    "Open the dashboard and enter your MFA code to connect."
+                )
+            else:
+                self.auth_status  = 'error'
+                self.auth_message = f'Login failed: {e}'
+                logger.error(f"Robinhood login failed: {e}")
+                self._notify_desktop(
+                    "Robinhood Login Failed",
+                    f"Check your credentials in .env — {e}"
+                )
+            return False
+
+    def submit_mfa(self, code):
+        """Submit the MFA code received by the user and complete login."""
+        logger.info("Submitting MFA code to Robinhood")
+        return self.login(mfa_code=code.strip())
+
+    def retry_login(self):
+        """Force a fresh login attempt (clears cached state first)."""
+        self._logged_in   = False
+        self.auth_status  = 'disconnected'
+        self.auth_message = 'Retrying...'
+        return self.login()
+
+    def get_auth_state(self):
+        return {
+            'status':  self.auth_status,
+            'message': self.auth_message,
+            'logged_in': self._logged_in,
+        }
+
+    def _notify_desktop(self, title, message):
+        """Send a desktop notification if plyer is available."""
+        try:
+            from plyer import notification
+            notification.notify(
+                title=title,
+                message=message,
+                app_name='Robinhood Monitor',
+                timeout=8,
+            )
+        except Exception:
+            pass  # plyer not available or notification failed
 
     # ── Positions ─────────────────────────────────────────────────────────────
 

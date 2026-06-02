@@ -326,6 +326,77 @@ tbody td { padding: 9px 12px; vertical-align: middle; }
 </div>
 
 <main>
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<!--  ROBINHOOD AUTH OVERLAY                                            -->
+<!-- Shown automatically when login fails or MFA is required            -->
+<!-- ══════════════════════════════════════════════════════════════════ -->
+<div id="authOverlay" style="
+  display:none; position:fixed; inset:0; z-index:999;
+  background:rgba(13,17,23,.92); backdrop-filter:blur(6px);
+  align-items:center; justify-content:center;">
+
+  <div style="
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:36px 40px; max-width:440px; width:90%;
+    box-shadow:0 24px 80px rgba(0,0,0,.6); text-align:center;">
+
+    <!-- Icon changes by state -->
+    <div id="authIcon" style="font-size:48px; margin-bottom:16px;">🔐</div>
+
+    <h2 id="authTitle" style="font-size:20px; font-weight:700; margin-bottom:8px;">
+      Connecting to Robinhood...
+    </h2>
+    <p id="authMsg" style="font-size:13px; color:var(--muted); margin-bottom:24px; line-height:1.5;">
+      Please wait while we establish a secure connection.
+    </p>
+
+    <!-- MFA input (shown only when needs_mfa) -->
+    <div id="authMfaSection" style="display:none; margin-bottom:20px;">
+      <div style="font-size:12px; color:var(--muted); margin-bottom:8px; text-align:left;">
+        Enter the verification code sent to your phone or email:
+      </div>
+      <input id="authMfaInput" type="text" maxlength="8"
+             placeholder="6-digit code"
+             style="width:100%; background:var(--bg); border:1px solid var(--border);
+                    color:var(--text); padding:10px 14px; border-radius:8px;
+                    font-size:20px; letter-spacing:6px; text-align:center; outline:none;
+                    margin-bottom:12px;"
+             onkeydown="if(event.key==='Enter') authSubmitMfa()">
+      <button onclick="authSubmitMfa()" id="authMfaBtn"
+              style="width:100%; background:var(--green); color:#000; border:none;
+                     padding:11px; border-radius:8px; font-size:14px; font-weight:700;
+                     cursor:pointer;">
+        Verify &amp; Connect
+      </button>
+    </div>
+
+    <!-- Retry button (shown on error) -->
+    <div id="authRetrySection" style="display:none;">
+      <button onclick="authRetry()"
+              style="width:100%; background:var(--surface2); color:var(--text);
+                     border:1px solid var(--border); padding:10px; border-radius:8px;
+                     font-size:13px; cursor:pointer; margin-bottom:8px;">
+        ↻ Retry Connection
+      </button>
+      <div style="font-size:11px; color:var(--muted);">
+        Check your credentials in the <code style="color:var(--blue)">.env</code> file and restart.
+      </div>
+    </div>
+
+    <!-- Spinner (shown while connecting) -->
+    <div id="authSpinner" style="color:var(--muted); font-size:13px;">
+      <span style="animation:pulse 1.4s infinite;">Connecting...</span>
+    </div>
+
+    <div id="authError" style="display:none; margin-top:12px; padding:8px 12px;
+         background:rgba(248,81,73,.1); border:1px solid rgba(248,81,73,.3);
+         border-radius:6px; font-size:12px; color:var(--red);"></div>
+  </div>
+</div>
+<style>
+  @keyframes pulse { 0%,100%{opacity:.4} 50%{opacity:1} }
+</style>
+
 
 <!-- ══════════════════════════════════════════════════════════════════ -->
 <!--  DASHBOARD TAB                                                     -->
@@ -2214,8 +2285,145 @@ function incomeFilterTable(val) {
 }
 
 // ── Init ───────────────────────────────────────────────────────────
+// ── Robinhood Auth Overlay ─────────────────────────────────────────
+let _authPollTimer = null;
+
+function authCheckStatus() {
+  fetch('/api/auth/status')
+    .then(r => r.json())
+    .then(state => {
+      authUpdateOverlay(state);
+      if (state.status === 'ok') {
+        authHideOverlay();
+        if (_authPollTimer) { clearInterval(_authPollTimer); _authPollTimer = null; }
+        refresh();
+        refreshCash();
+        refreshTransfers();
+      } else if (state.status === 'connecting') {
+        // Keep polling
+      } else {
+        if (_authPollTimer) { clearInterval(_authPollTimer); _authPollTimer = null; }
+      }
+    })
+    .catch(() => {});
+}
+
+function authUpdateOverlay(state) {
+  const overlay   = document.getElementById('authOverlay');
+  const icon      = document.getElementById('authIcon');
+  const title     = document.getElementById('authTitle');
+  const msg       = document.getElementById('authMsg');
+  const mfaSec    = document.getElementById('authMfaSection');
+  const retrySec  = document.getElementById('authRetrySection');
+  const spinner   = document.getElementById('authSpinner');
+  const errDiv    = document.getElementById('authError');
+
+  if (!overlay) return;
+
+  if (state.status === 'ok') { authHideOverlay(); return; }
+
+  // Show overlay
+  overlay.style.display = 'flex';
+  mfaSec.style.display   = 'none';
+  retrySec.style.display = 'none';
+  spinner.style.display  = 'none';
+  errDiv.style.display   = 'none';
+
+  if (state.status === 'connecting' || state.status === 'disconnected') {
+    icon.textContent  = '🔄';
+    title.textContent = 'Connecting to Robinhood...';
+    msg.textContent   = state.message || 'Establishing secure connection.';
+    spinner.style.display = 'block';
+
+  } else if (state.status === 'needs_mfa') {
+    icon.textContent  = '📱';
+    title.textContent = 'Verification Required';
+    msg.textContent   = 'Robinhood has sent a one-time code to your registered phone or email.';
+    mfaSec.style.display = 'block';
+    setTimeout(() => { const inp = document.getElementById('authMfaInput'); if (inp) inp.focus(); }, 100);
+
+  } else if (state.status === 'error') {
+    icon.textContent  = '⚠️';
+    title.textContent = 'Login Failed';
+    msg.textContent   = state.message || 'Could not connect to Robinhood.';
+    retrySec.style.display = 'block';
+    if (state.message) {
+      errDiv.textContent    = state.message;
+      errDiv.style.display  = 'block';
+    }
+  }
+}
+
+function authHideOverlay() {
+  const overlay = document.getElementById('authOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+function authSubmitMfa() {
+  const input = document.getElementById('authMfaInput');
+  const btn   = document.getElementById('authMfaBtn');
+  const err   = document.getElementById('authError');
+  const code  = (input ? input.value : '').trim();
+
+  if (!code || code.length < 4) {
+    if (err) { err.textContent = 'Please enter the full verification code.'; err.style.display = 'block'; }
+    return;
+  }
+
+  if (btn) { btn.disabled = true; btn.textContent = 'Verifying...'; }
+  if (err) err.style.display = 'none';
+
+  fetch('/api/auth/mfa', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ code }),
+  })
+    .then(r => r.json())
+    .then(data => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Verify & Connect'; }
+      if (data.success) {
+        authHideOverlay();
+        refresh(); refreshCash(); refreshTransfers();
+      } else {
+        authUpdateOverlay(data);
+        if (err && data.message) { err.textContent = data.message; err.style.display = 'block'; }
+        if (input) input.value = '';
+      }
+    })
+    .catch(() => {
+      if (btn) { btn.disabled = false; btn.textContent = 'Verify & Connect'; }
+    });
+}
+
+function authRetry() {
+  const icon  = document.getElementById('authIcon');
+  const title = document.getElementById('authTitle');
+  const msg   = document.getElementById('authMsg');
+  const spin  = document.getElementById('authSpinner');
+  const retry = document.getElementById('authRetrySection');
+  const err   = document.getElementById('authError');
+
+  if (icon)  icon.textContent  = '🔄';
+  if (title) title.textContent = 'Retrying...';
+  if (msg)   msg.textContent   = 'Attempting to reconnect to Robinhood.';
+  if (spin)  spin.style.display  = 'block';
+  if (retry) retry.style.display = 'none';
+  if (err)   err.style.display   = 'none';
+
+  fetch('/api/auth/retry', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      authUpdateOverlay(data);
+      if (data.success) { authHideOverlay(); refresh(); refreshCash(); refreshTransfers(); }
+    })
+    .catch(() => {});
+}
+
+
 document.addEventListener('DOMContentLoaded', () => {
   loadSettings();
+  authCheckStatus();
+  _authPollTimer = setInterval(authCheckStatus, 3000);
   refresh();
   refreshTransfers();
 

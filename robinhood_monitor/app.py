@@ -276,6 +276,41 @@ def api_delete_transfer(transfer_id):
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+# ── Auth ──────────────────────────────────────────────────────────────────────
+
+@app.route('/api/auth/status')
+def api_auth_status():
+    """Return the current Robinhood auth state so the dashboard can react."""
+    return jsonify(_engine.client.get_auth_state())
+
+
+@app.route('/api/auth/mfa', methods=['POST'])
+def api_auth_mfa():
+    """Accept a user-supplied MFA code and complete the Robinhood login."""
+    data = request.get_json(force=True) or {}
+    code = str(data.get('code', '')).strip()
+    if not code:
+        return jsonify({'success': False, 'message': 'MFA code is required'}), 400
+    ok = _engine.client.submit_mfa(code)
+    state = _engine.client.get_auth_state()
+    if ok:
+        # Kick off a position scan now that we're authenticated
+        import threading
+        threading.Thread(target=_run_scan, daemon=True).start()
+    return jsonify({'success': ok, **state})
+
+
+@app.route('/api/auth/retry', methods=['POST'])
+def api_auth_retry():
+    """Trigger a fresh login attempt (e.g. after updating .env credentials)."""
+    ok = _engine.client.retry_login()
+    state = _engine.client.get_auth_state()
+    if ok:
+        import threading
+        threading.Thread(target=_run_scan, daemon=True).start()
+    return jsonify({'success': ok, **state})
+
+
 # ── Stock Universe ────────────────────────────────────────────────────────────
 
 _universe_scanner = None
