@@ -25,6 +25,10 @@ class RobinhoodClient:
     def ensure_logged_in(self):
         if self._logged_in:
             return True
+        # Do not auto-retry when in error or needs_mfa state —
+        # wait for the user to act via the dashboard overlay.
+        if self.auth_status in ('error', 'needs_mfa'):
+            return False
         return self.login()
 
     def login(self, mfa_code=None):
@@ -34,6 +38,7 @@ class RobinhoodClient:
         and returns False so the dashboard can prompt the user.
         """
         import robin_stocks.robinhood as rh
+        self._patch_robin_stocks(rh)
 
         username = self._username or os.getenv('ROBINHOOD_USERNAME')
         password = self._password or os.getenv('ROBINHOOD_PASSWORD')
@@ -51,11 +56,18 @@ class RobinhoodClient:
         self.auth_status  = 'connecting'
         self.auth_message = 'Connecting to Robinhood...'
 
+        # Always clear stale pickle before attempting login to avoid
+        # the robin_stocks 'token_type' key error on expired sessions.
+        self._clear_pickle()
+
         try:
             rh.login(username, password,
                      mfa_code=mfa_code,
-                     store_session=True,
-                     pickle_name='robinhood_session')
+                     store_session=False)
+
+            # rh.login() sometimes prints warnings but returns normally.
+            # If no exception was raised, treat the session as established.
+            # The session error detector in API calls will catch any broken state.
             self._logged_in   = True
             self.auth_status  = 'ok'
             self.auth_message = 'Connected'
@@ -70,7 +82,8 @@ class RobinhoodClient:
             # Detect MFA / 2FA requirement
             mfa_keywords = ['mfa', 'two factor', '2fa', 'verification code',
                             'multi-factor', 'one-time', 'sms code', 'challenge']
-            if any(kw in err for kw in mfa_keywords) or 'enter' in err:
+            if any(kw in err for kw in mfa_keywords) or (
+                    'enter' in err and 'code' in err):
                 self.auth_status  = 'needs_mfa'
                 self.auth_message = 'MFA required — enter the code sent to your phone/email.'
                 logger.warning("Robinhood login requires MFA code")
@@ -84,7 +97,7 @@ class RobinhoodClient:
                 logger.error(f"Robinhood login failed: {e}")
                 self._notify_desktop(
                     "Robinhood Login Failed",
-                    f"Check your credentials in .env — {e}"
+                    f"Check credentials in .env — {e}"
                 )
             return False
 
@@ -94,10 +107,11 @@ class RobinhoodClient:
         return self.login(mfa_code=code.strip())
 
     def retry_login(self):
-        """Force a fresh login attempt (clears cached state first)."""
+        """Force a fresh login attempt — clears stale session file first."""
         self._logged_in   = False
-        self.auth_status  = 'disconnected'
+        self.auth_status  = 'connecting'
         self.auth_message = 'Retrying...'
+        self._clear_pickle()
         return self.login()
 
     def get_auth_state(self):
@@ -106,6 +120,61 @@ class RobinhoodClient:
             'message': self.auth_message,
             'logged_in': self._logged_in,
         }
+
+    def _patch_robin_stocks(self, rh):
+        """
+        Monkey-patch robin_stocks to inject a default token_type='Bearer' when
+        Robinhood omits it from the OAuth response. The patch must be applied in
+        the authentication module's namespace (not just helper) because
+        authentication.py binds request_post at import time via
+        'from helper import request_post'.
+        """
+        try:
+            import robin_stocks.robinhood.helper         as rh_helper
+            import robin_stocks.robinhood.authentication as rh_auth
+
+            if getattr(rh_auth, '_patched_by_monitor', False):
+                return  # already patched this session
+
+            # Choose the original function from whichever module has it
+            _orig = getattr(rh_auth, 'request_post',
+                            getattr(rh_helper, 'request_post', None))
+            if _orig is None:
+                logger.warning("Could not find request_post to patch")
+                return
+
+            def _safe_post(url, payload=None, **kwargs):
+                result = _orig(url, payload, **kwargs)
+                if isinstance(result, dict):
+                    if 'access_token' in result and 'token_type' not in result:
+                        result['token_type'] = 'Bearer'
+                        logger.info("Injected token_type=Bearer into auth response")
+                return result
+
+            # Patch in both modules so whichever binding is active gets fixed
+            if hasattr(rh_auth,   'request_post'): rh_auth.request_post   = _safe_post
+            if hasattr(rh_helper, 'request_post'): rh_helper.request_post = _safe_post
+
+            rh_auth._patched_by_monitor = True
+            logger.info("robin_stocks auth patch applied (authentication + helper)")
+        except Exception as patch_err:
+            logger.warning(f"Could not patch robin_stocks: {patch_err}")
+
+    def _clear_pickle(self):
+        """Delete ALL stale robin_stocks session pickle files."""
+        import glob
+        patterns = [
+            os.path.join(os.path.expanduser('~'), '.tokens', '*.pickle'),
+            os.path.join(os.path.expanduser('~'), '.tokens', '*'),      # no extension
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), '*.pickle'),
+        ]
+        for pattern in patterns:
+            for f in glob.glob(pattern):
+                try:
+                    os.remove(f)
+                    logger.info(f"Removed stale session file: {f}")
+                except Exception:
+                    pass
 
     def _notify_desktop(self, title, message):
         """Send a desktop notification if plyer is available."""
@@ -119,6 +188,23 @@ class RobinhoodClient:
             )
         except Exception:
             pass  # plyer not available or notification failed
+
+    # ── Session validation ────────────────────────────────────────────────────
+
+    def _is_session_error(self, err_str):
+        """Return True if the error indicates the robin_stocks session is broken."""
+        markers = ['can only be called when logged in', 'not logged in',
+                   'login required', 'token', 'unauthorized']
+        return any(m in err_str.lower() for m in markers)
+
+    def _handle_session_error(self, e):
+        """Reset auth state so the overlay re-appears on the next poll."""
+        self._logged_in   = False
+        self.auth_status  = 'error'
+        self.auth_message = 'Session expired — please retry login.'
+        logger.error(f"Session error detected: {e}")
+        self._notify_desktop("Robinhood Session Expired",
+                             "Open the dashboard and click Retry to reconnect.")
 
     # ── Positions ─────────────────────────────────────────────────────────────
 
@@ -151,7 +237,10 @@ class RobinhoodClient:
             logger.info(f"Fetched {len(result)} open options positions")
             return result
         except Exception as e:
-            logger.error(f"Error fetching options positions: {e}")
+            if self._is_session_error(str(e)):
+                self._handle_session_error(e)
+            else:
+                logger.error(f"Error fetching options positions: {e}")
             return []
 
     def _fetch_option_data(self, rh, option_id, option_url):
@@ -279,7 +368,10 @@ class RobinhoodClient:
             return info
 
         except Exception as e:
-            logger.error(f"Error fetching account cash info: {e}")
+            if self._is_session_error(str(e)):
+                self._handle_session_error(e)
+            else:
+                logger.error(f"Error fetching account cash info: {e}")
             return None
 
     # ── Stock holdings ────────────────────────────────────────────────────────

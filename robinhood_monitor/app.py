@@ -464,6 +464,27 @@ def api_stop_put_scan():
     return jsonify({'success': True})
 
 
+def _startup_login():
+    """Attempt Robinhood login at startup, independent of trading hours.
+    Retries every 10 seconds for up to 3 minutes so the user has time
+    to tap 'Yes, it's me' in the Robinhood mobile app."""
+    time.sleep(1.5)   # wait for Flask to finish binding
+    max_attempts = 18  # 18 x 10s = 3 minutes
+    for attempt in range(1, max_attempts + 1):
+        if _engine.client._logged_in:
+            return
+        # Don't retry if user needs to take action via the overlay
+        if _engine.client.auth_status == 'needs_mfa':
+            return
+        logger.info(f"Startup login attempt {attempt}/{max_attempts}...")
+        _engine.client.login()
+        if _engine.client._logged_in:
+            return
+        # Wait before next attempt so user can approve on mobile
+        if attempt < max_attempts:
+            time.sleep(10)
+    logger.warning("Startup login: max attempts reached — waiting for user action via dashboard")
+
 # Entry point
 
 if __name__ == '__main__':
@@ -474,6 +495,9 @@ if __name__ == '__main__':
     init_db()
     seed_initial_transfers()
     prune_old_data(days=30)
+
+    # Startup login — runs immediately regardless of trading hours
+    threading.Thread(target=_startup_login, daemon=True, name='startup-login').start()
 
     monitor_thread = threading.Thread(target=_background_monitor, daemon=True, name='monitor')
     monitor_thread.start()

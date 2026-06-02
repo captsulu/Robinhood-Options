@@ -2299,11 +2299,9 @@ function authCheckStatus() {
         refresh();
         refreshCash();
         refreshTransfers();
-      } else if (state.status === 'connecting') {
-        // Keep polling
-      } else {
-        if (_authPollTimer) { clearInterval(_authPollTimer); _authPollTimer = null; }
       }
+      // For all non-ok states keep polling so the overlay updates
+      // when the startup login thread completes
     })
     .catch(() => {});
 }
@@ -2330,10 +2328,16 @@ function authUpdateOverlay(state) {
   errDiv.style.display   = 'none';
 
   if (state.status === 'connecting' || state.status === 'disconnected') {
-    icon.textContent  = '🔄';
-    title.textContent = 'Connecting to Robinhood...';
-    msg.textContent   = state.message || 'Establishing secure connection.';
+    icon.textContent  = '📱';
+    title.textContent = 'Authorize Login on Your Phone';
+    msg.innerHTML =
+      '<strong>Robinhood is sending a security prompt to your mobile app.</strong><br><br>' +
+      '1. Open the <strong>Robinhood app</strong> on your phone<br>' +
+      '2. Tap <strong>"Yes, it's me"</strong> to authorize this login<br>' +
+      '3. This screen will update automatically once approved';
     spinner.style.display = 'block';
+    // Also show retry button so user can re-attempt after approving
+    retrySec.style.display = 'block';
 
   } else if (state.status === 'needs_mfa') {
     icon.textContent  = '📱';
