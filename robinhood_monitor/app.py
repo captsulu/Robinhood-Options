@@ -19,7 +19,10 @@ from database import (get_price_history, get_recent_alerts, get_tracked_symbols,
                       get_cash_snapshots, init_db, prune_old_data,
                       get_transfers, get_capital_summary, seed_initial_transfers,
                       delete_transfer, get_income_summary, get_income_by_month,
-                      get_income_trades, get_income_by_symbol)
+                      get_income_trades, get_income_by_symbol,
+                      get_stock_universe, get_stock_universe_stats,
+                      get_covered_call_opportunities, get_covered_call_scan_time,
+                      get_put_opportunities)
 from monitor import MonitorEngine, is_trading_window
 
 # Logging
@@ -343,35 +346,6 @@ def api_stock_detail(symbol):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-
-# ── Income ────────────────────────────────────────────────────────────────────
-
-@app.route('/api/income')
-def api_income():
-    return jsonify({
-        'summary':   get_income_summary(),
-        'by_month':  get_income_by_month(months=12),
-        'trades':    get_income_trades(limit=200),
-        'by_symbol': get_income_by_symbol(limit=20),
-    })
-
-
-@app.route('/api/income/sync', methods=['POST'])
-def api_sync_income():
-    try:
-        if not _engine.client.ensure_logged_in():
-            return jsonify({'success': False, 'message': 'Not logged in'}), 401
-        count = _engine.client.sync_options_income_to_db()
-        return jsonify({
-            'success':   True,
-            'synced':    count,
-            'summary':   get_income_summary(),
-            'by_month':  get_income_by_month(months=12),
-            'trades':    get_income_trades(limit=200),
-            'by_symbol': get_income_by_symbol(limit=20),
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'message': str(e)}), 500
 
 
 # ── Covered Calls ─────────────────────────────────────────────────────────────
